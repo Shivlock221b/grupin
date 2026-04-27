@@ -8,11 +8,17 @@ type SiteShellProps = {
 export function SiteShell({ children }: SiteShellProps) {
   return (
     <div className="min-h-screen bg-[var(--sand)] text-[var(--ink)]">
-      <header className="border-b border-[rgba(22,38,32,0.12)] bg-white/80 backdrop-blur">
-        <div className="mx-auto flex max-w-6xl items-center px-6 py-4">
+      <header className="sticky top-0 z-50 border-b border-slate-200 bg-white/88 backdrop-blur">
+        <div className="mx-auto flex max-w-6xl items-center justify-between gap-4 px-6 py-4">
           <Link href="/" className="text-lg font-semibold tracking-[0.18em] text-[var(--forest)] uppercase">
             GruPin
           </Link>
+          <a
+            href="/#demo"
+            className="rounded-full bg-slate-950 px-4 py-2 text-sm font-semibold !text-white shadow-sm transition hover:-translate-y-0.5 hover:bg-slate-800"
+          >
+            Simulate your product
+          </a>
         </div>
       </header>
       <main>{children}</main>
