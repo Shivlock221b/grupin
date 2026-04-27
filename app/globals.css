@@ -21,11 +21,8 @@ html {
 
 body {
   margin: 0;
-  font-family: Georgia, "Times New Roman", serif;
-  background:
-    radial-gradient(circle at top left, rgba(233, 196, 106, 0.32), transparent 32%),
-    radial-gradient(circle at top right, rgba(190, 90, 57, 0.18), transparent 28%),
-    var(--sand);
+  font-family: Inter, Satoshi, "Avenir Next", "Segoe UI", sans-serif;
+  background: #ffffff;
   color: var(--ink);
 }
 
