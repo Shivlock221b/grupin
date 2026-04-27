@@ -270,7 +270,7 @@ function HeroUnlockVisual() {
       initial={{ opacity: 0, y: 24, rotate: -2 }}
       animate={{ opacity: 1, y: 0, rotate: 0 }}
       transition={{ duration: 0.7, delay: 0.2 }}
-      className="relative z-30 mx-auto mt-9 w-full max-w-[420px] scale-[0.94] rounded-[28px] border border-white/70 bg-white/88 p-5 shadow-[0_24px_70px_rgba(15,23,42,0.16)] backdrop-blur-xl md:absolute md:bottom-16 md:right-12 md:mt-0 md:w-[min(420px,86vw)] md:max-w-none md:scale-100 md:border-white/55 md:bg-white/82 md:shadow-[0_30px_90px_rgba(15,23,42,0.18)]"
+      className="relative z-30 w-full max-w-[420px] scale-[0.94] rounded-[28px] border border-white/70 bg-white/88 p-5 shadow-[0_24px_70px_rgba(15,23,42,0.16)] backdrop-blur-xl md:w-[min(420px,86vw)] md:max-w-none md:scale-100 md:border-white/55 md:bg-white/82 md:shadow-[0_30px_90px_rgba(15,23,42,0.18)]"
     >
       <div className="flex items-start justify-between gap-5">
         <div>
@@ -681,33 +681,36 @@ export function GruPinLandingPage() {
         <div className="pointer-events-none absolute inset-0 z-10 bg-[linear-gradient(180deg,rgba(255,255,255,0.82)_0%,rgba(255,255,255,0.72)_38%,rgba(255,255,255,0.34)_72%,rgba(255,255,255,0)_100%)] md:bg-[linear-gradient(180deg,rgba(255,255,255,0.42)_0%,rgba(255,255,255,0.22)_46%,rgba(255,255,255,0)_100%)]" />
         <div className="absolute inset-x-0 top-0 z-10 h-px bg-gradient-to-r from-transparent via-slate-300 to-transparent" />
         <div className="relative mx-auto max-w-6xl">
-          <motion.div
-            initial={{ opacity: 0, y: 24 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.65 }}
-            className="relative z-20 mx-auto max-w-[480px] rounded-[28px] border border-white/70 bg-white/72 p-5 shadow-sm backdrop-blur-md md:mx-0 md:max-w-3xl md:border-0 md:bg-transparent md:p-0 md:shadow-none md:backdrop-blur-0"
-          >
-            <p className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white/80 px-4 py-2 text-sm font-semibold text-slate-700 shadow-sm backdrop-blur">
-              <Sparkles className="h-4 w-4 text-emerald-600" />
-              Group price unlocks for D2C drops
-            </p>
-            <h1 className="mt-7 text-4xl font-semibold leading-[1.08] text-slate-950 sm:text-5xl md:mt-8 md:text-7xl md:leading-[1.02]">
-              Sell more without putting your brand on sale
-            </h1>
-            <p className="mt-5 max-w-2xl text-lg leading-8 text-slate-600 md:mt-6 md:text-xl">
-              Prices drop as more customers join — unlock demand without public discounts.
-            </p>
-            <button
-              type="button"
-              onClick={() => document.getElementById("demo")?.scrollIntoView({ behavior: "smooth" })}
-              className="mt-6 inline-flex items-center gap-2 rounded-full bg-slate-950 px-6 py-3 text-sm font-semibold text-white shadow-[0_18px_40px_rgba(15,23,42,0.18)] transition hover:-translate-y-0.5 hover:bg-slate-800 md:mt-9"
+          <div className="grid gap-12 lg:grid-cols-[1.1fr_0.9fr] lg:gap-16 lg:items-center">
+            <motion.div
+              initial={{ opacity: 0, y: 24 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.65 }}
+              className="relative z-20 mx-auto max-w-[480px] rounded-[28px] border border-white/70 bg-white/72 p-5 shadow-sm backdrop-blur-md md:mx-0 md:max-w-3xl md:border-0 md:bg-transparent md:p-0 md:shadow-none md:backdrop-blur-0"
             >
-              See how it works
-              <ArrowRight className="h-4 w-4" />
-            </button>
-          </motion.div>
-          <div className="relative z-20 h-1 md:hidden" aria-hidden="true" />
-          <HeroUnlockVisual />
+              <p className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white/80 px-4 py-2 text-sm font-semibold text-slate-700 shadow-sm backdrop-blur">
+                <Sparkles className="h-4 w-4 text-emerald-600" />
+                Group price unlocks for D2C drops
+              </p>
+              <h1 className="mt-7 text-4xl font-semibold leading-[1.08] text-slate-950 sm:text-5xl md:mt-8 md:text-7xl md:leading-[1.02]">
+                Sell more without putting your brand on sale
+              </h1>
+              <p className="mt-5 max-w-2xl text-lg leading-8 text-slate-600 md:mt-6 md:text-xl">
+                Prices drop as more customers join — unlock demand without public discounts.
+              </p>
+              <button
+                type="button"
+                onClick={() => document.getElementById("demo")?.scrollIntoView({ behavior: "smooth" })}
+                className="mt-6 inline-flex items-center gap-2 rounded-full bg-slate-950 px-6 py-3 text-sm font-semibold text-white shadow-[0_18px_40px_rgba(15,23,42,0.18)] transition hover:-translate-y-0.5 hover:bg-slate-800 md:mt-9"
+              >
+                See how it works
+                <ArrowRight className="h-4 w-4" />
+              </button>
+            </motion.div>
+            <div className="relative z-20 flex justify-center lg:justify-end">
+              <HeroUnlockVisual />
+            </div>
+          </div>
         </div>
       </section>
 
