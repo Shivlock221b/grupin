@@ -643,7 +643,7 @@ function HowItWorksSection() {
         <div className="mt-12 grid gap-4 md:grid-cols-3">
           {[
             { icon: SlidersHorizontal, title: "Create a group unlock for a product" },
-            { icon: Users, title: "Customers join (no upfront payment)" },
+            { icon: Users, title: "Customers join & commit" },
             { icon: PackageCheck, title: "Price unlocks → they purchase" },
           ].map((step, index) => {
             const Icon = step.icon;
@@ -891,10 +891,13 @@ export function GruPinLandingPage() {
           </p>
           <button
             type="button"
-            onClick={() => document.getElementById("demo")?.scrollIntoView({ behavior: "smooth" })}
+            onClick={() => {
+              console.log('Button clicked: Contact us to start');
+              window.open('https://forms.gle/3BMG6WtJV71UKEae8', '_blank');
+            }}
             className="mt-9 inline-flex items-center gap-2 rounded-full bg-emerald-600 px-7 py-4 text-sm font-semibold text-white shadow-[0_20px_50px_rgba(22,163,74,0.25)] transition hover:-translate-y-0.5 hover:bg-emerald-700"
           >
-            Start a test drop
+            Contact us to start
             <ArrowRight className="h-4 w-4" />
           </button>
         </motion.div>
