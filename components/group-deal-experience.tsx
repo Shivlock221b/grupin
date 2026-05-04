@@ -624,7 +624,7 @@ export function GroupDealExperience({ initialDeal, initialReservations }: GroupD
                 <div className="absolute inset-0 opacity-20 [background-image:linear-gradient(90deg,rgba(255,255,255,.18)_1px,transparent_1px),linear-gradient(0deg,rgba(255,255,255,.18)_1px,transparent_1px)] [background-size:34px_34px]" />
 
                 <a
-                  href="https://antinorm.com"
+                  href="https://antinorm.co"
                   className="absolute right-4 top-4 z-20 grid h-11 w-11 place-items-center rounded-full bg-slate-950/70 text-white shadow-[0_10px_24px_rgba(15,23,42,0.28)] ring-1 ring-white/25 backdrop-blur transition hover:bg-slate-950/85"
                   aria-label="View product on brand site"
                   title="View product"
