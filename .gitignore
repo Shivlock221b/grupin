@@ -8,5 +8,7 @@
 node_modules
 dist
 out
+test-results
+playwright-report
 
 .DS_Store

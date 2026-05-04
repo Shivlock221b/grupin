@@ -63,7 +63,7 @@ values
     30,
     1400,
     18,
-    now() + interval '24 hours'
+    now() + interval '48 hours'
   ),
   (
     gen_random_uuid(),
@@ -95,7 +95,7 @@ values
     30,
     1400,
     2,
-    now() + interval '24 hours'
+    now() + interval '48 hours'
   ),
   (
     gen_random_uuid(),
@@ -127,7 +127,7 @@ values
     30,
     1400,
     2,
-    now() + interval '24 hours'
+    now() + interval '48 hours'
   ),
   (
     gen_random_uuid(),
@@ -159,9 +159,15 @@ values
     30,
     1400,
     1,
-    now() + interval '24 hours'
+    now() + interval '48 hours'
   )
 on conflict (slug) do nothing;
+
+update public.deals
+set expires_at = now() + interval '48 hours',
+    status = 'live'
+where id = '00000000-0000-0000-0000-000000000101'
+   or slug = 'antinorm-combo';
 
 insert into public.reservations (deal_id, name, phone, email, razorpay_payment_id, created_at)
 values

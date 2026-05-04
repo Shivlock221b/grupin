@@ -204,23 +204,8 @@ export function GroupDealExperience({ initialDeal, initialReservations }: GroupD
 
       try {
         const requestUrl = `/api/reservations?${params.toString()}`;
-        console.log("[GruPin deal refresh] fetching snapshot", {
-          dealId: deal.id,
-          hasStoredPhone: Boolean(storedPhone),
-          joinedFlag: window.localStorage.getItem(joinedStorageKey(deal.id)),
-          url: requestUrl,
-        });
         const response = await fetch(requestUrl, { cache: "no-store" });
         const payload = (await response.json()) as DealRefreshPayload;
-
-        console.log("[GruPin deal refresh] response", {
-          ok: response.ok,
-          status: response.status,
-          joined: payload.joined,
-          reservations: payload.reservations?.length ?? 0,
-          currentCount: payload.deal?.currentCount,
-          expiresAt: payload.deal?.expiresAt,
-        });
 
         if (!response.ok) {
           syncJoinedState();
@@ -246,7 +231,6 @@ export function GroupDealExperience({ initialDeal, initialReservations }: GroupD
         }
       } catch {
         // The page can stay on the last known snapshot if the refresh misses.
-        console.log("[GruPin deal refresh] failed to fetch snapshot", { dealId: deal.id });
         syncJoinedState();
       }
     }
@@ -311,21 +295,8 @@ export function GroupDealExperience({ initialDeal, initialReservations }: GroupD
         }
 
         const requestUrl = `/api/reservations?${params.toString()}`;
-        console.log("[GruPin feed refresh] fetching snapshot", {
-          dealId: deal.id,
-          hasStoredPhone: Boolean(storedPhone),
-          url: requestUrl,
-        });
         const response = await fetch(requestUrl, { cache: "no-store" });
         const payload = (await response.json()) as DealRefreshPayload;
-        console.log("[GruPin feed refresh] response", {
-          ok: response.ok,
-          status: response.status,
-          joined: payload.joined,
-          reservations: payload.reservations?.length ?? 0,
-          currentCount: payload.deal?.currentCount,
-          expiresAt: payload.deal?.expiresAt,
-        });
         if (response.ok && Array.isArray(payload.reservations)) {
           setReservations(payload.reservations);
         }
@@ -341,7 +312,6 @@ export function GroupDealExperience({ initialDeal, initialReservations }: GroupD
         }
       } catch {
         // The feed can stay on the last known state if the refresh misses.
-        console.log("[GruPin feed refresh] failed to fetch snapshot", { dealId: deal.id });
       }
     }, 7000);
 

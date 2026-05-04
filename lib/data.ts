@@ -56,7 +56,20 @@ function mapDeal(row: Record<string, unknown>): Deal {
 }
 
 function getDemoExpiresAt() {
-  return new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
+  return new Date(Date.now() + 48 * 60 * 60 * 1000).toISOString();
+}
+
+function isUuid(value: string) {
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(value);
+}
+
+function publicReservation(row: Reservation): Reservation {
+  return {
+    ...row,
+    phone: "",
+    email: "",
+    razorpayPaymentId: "",
+  };
 }
 
 function mapGroupDeal(row: Record<string, unknown>): GroupDeal {
@@ -143,6 +156,10 @@ export const getGroupDealById = cache(async (id: string): Promise<GroupDeal | nu
   const supabase = createAdminClient() ?? await createClient();
   const demo = getDemoGroupDeal();
 
+  if (!isUuid(id)) {
+    return id === demo.id || id === "demo" || id === "antinorm-combo" ? demo : null;
+  }
+
   if (!supabase) {
     return id === demo.id || id === "demo" || id === "antinorm-combo" ? demo : null;
   }
@@ -169,21 +186,25 @@ export async function listReservationsByDeal(dealId: string, limit = 8): Promise
   const demoReservations = () => {
     const now = Date.now();
     return [
-      ["Rohit", "Delhi", 2],
-      ["Ananya", "Mumbai", 4],
-      ["Kabir", "Bengaluru", 7],
-      ["Meera", "Pune", 9],
-      ["Dev", "Delhi", 12],
-    ].slice(0, limit).map(([name, city, minutes], index) => ({
+      ["Rohit", 2],
+      ["Ananya", 4],
+      ["Kabir", 7],
+      ["Meera", 9],
+      ["Dev", 12],
+    ].slice(0, limit).map(([name, minutes], index) => ({
       id: `demo-reservation-${index}`,
       dealId,
-      name: `${name} from ${city}`,
+      name: String(name),
       phone: "",
       email: "",
-      razorpayPaymentId: `demo_${index}`,
+      razorpayPaymentId: "",
       createdAt: new Date(now - Number(minutes) * 60 * 1000).toISOString(),
     }));
   };
+
+  if (!isUuid(dealId)) {
+    return dealId === "antinorm-combo" || dealId === "demo" ? demoReservations() : [];
+  }
 
   if (!supabase) {
     return demoReservations();
@@ -204,15 +225,17 @@ export async function listReservationsByDeal(dealId: string, limit = 8): Promise
     throw error;
   }
 
-  return (data ?? []).map((row) => ({
-    id: String(row.id),
-    dealId: String(row.deal_id),
-    name: String(row.name),
-    phone: String(row.phone),
-    email: String(row.email),
-    razorpayPaymentId: String(row.razorpay_payment_id),
-    createdAt: String(row.created_at),
-  }));
+  return (data ?? []).map((row) =>
+    publicReservation({
+      id: String(row.id),
+      dealId: String(row.deal_id),
+      name: String(row.name),
+      phone: String(row.phone),
+      email: String(row.email),
+      razorpayPaymentId: String(row.razorpay_payment_id),
+      createdAt: String(row.created_at),
+    })
+  );
 }
 
 export async function getUnlockedCouponForPhone(dealId: string, phone: string): Promise<{

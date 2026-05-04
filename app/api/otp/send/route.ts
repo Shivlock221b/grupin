@@ -1,7 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createOtp, OtpPurpose } from "@/lib/otp";
 import { createAdminClient } from "@/lib/supabase-admin";
-import { phoneLookupVariants } from "@/lib/otp";
+import { normalizePhone, phoneLookupVariants } from "@/lib/otp";
+
+function isUuid(value: string) {
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(value);
+}
 
 export async function POST(request: NextRequest) {
   try {
@@ -11,7 +15,13 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ message: "Phone and purpose are required." }, { status: 400 });
     }
 
-    if (purpose === "reservation" && typeof dealId === "string") {
+    const normalizedPhone = normalizePhone(phone);
+
+    if (!normalizedPhone || normalizedPhone.length < 8) {
+      return NextResponse.json({ message: "Enter a valid phone number." }, { status: 400 });
+    }
+
+    if (purpose === "reservation" && typeof dealId === "string" && isUuid(dealId)) {
       const supabase = createAdminClient();
 
       if (supabase) {
@@ -20,6 +30,7 @@ export async function POST(request: NextRequest) {
           .select("id")
           .eq("deal_id", dealId)
           .in("phone", phoneLookupVariants(phone))
+          .limit(1)
           .maybeSingle();
 
         if (error) {
