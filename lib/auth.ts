@@ -1,5 +1,6 @@
 import { createClient } from "@/supabase/server";
 import { createAdminClient } from "@/lib/supabase-admin";
+import { getBrandMembershipsForEmail } from "@/lib/data";
 import { redirect } from "next/navigation";
 
 export async function getCurrentUser() {
@@ -85,4 +86,28 @@ export async function requireAdminOrRedirect() {
   }
 
   return user;
+}
+
+export async function requireBrandPartnerOrRedirect() {
+  const user = await getCurrentUser();
+
+  if (!user?.email) {
+    redirect("/admin/login");
+  }
+
+  if (isAllowedAdminEmail(user.email)) {
+    const memberships = await getBrandMembershipsForEmail(user.email);
+
+    if (memberships[0]) {
+      return { user, membership: memberships[0], allMemberships: memberships, isPlatformAdmin: true };
+    }
+  }
+
+  const memberships = await getBrandMembershipsForEmail(user.email);
+
+  if (!memberships[0]) {
+    redirect("/admin/login?error=not_authorized");
+  }
+
+  return { user, membership: memberships[0], allMemberships: memberships, isPlatformAdmin: false };
 }

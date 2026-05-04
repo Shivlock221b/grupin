@@ -13,12 +13,6 @@ export function SiteShell({ children }: SiteShellProps) {
           <Link href="/" className="text-lg font-semibold tracking-[0.18em] text-[var(--forest)] uppercase">
             GruPin
           </Link>
-          <a
-            href="/#demo"
-            className="rounded-full bg-slate-950 px-4 py-2 text-sm font-semibold !text-white shadow-sm transition hover:-translate-y-0.5 hover:bg-slate-800"
-          >
-            Simulate your product
-          </a>
         </div>
       </header>
       <main>{children}</main>

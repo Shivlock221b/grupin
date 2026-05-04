@@ -1,14 +1,22 @@
 import { cache } from "react";
 import { createClient } from "@/supabase/server";
 import { createAdminClient } from "@/lib/supabase-admin";
+import { phoneLookupVariants } from "@/lib/otp";
 import { mockDeals, mockInterests, mockNotificationEvents, mockProfiles } from "@/lib/mock-data";
 import {
   Deal,
   DealFilters,
   DealInterest,
   DealStatus,
+  Brand,
+  BrandUser,
+  DashboardDeal,
+  DashboardReservation,
+  DealCoupon,
   NotificationEvent,
   Profile,
+  GroupDeal,
+  Reservation,
   UserDealInterest,
 } from "@/lib/types";
 import { formatDiscountBand } from "@/lib/utils";
@@ -45,6 +53,398 @@ function mapDeal(row: Record<string, unknown>): Deal {
     terms: Array.isArray(row.terms) ? (row.terms as string[]) : [],
     featured: Boolean(row.featured),
   };
+}
+
+function getDemoExpiresAt() {
+  return new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
+}
+
+function mapGroupDeal(row: Record<string, unknown>): GroupDeal {
+  return {
+    id: String(row.id),
+    title: String(row.title),
+    originalPrice: Number(row.original_price),
+    tiers: [
+      { threshold: Number(row.tier_1_threshold), price: Number(row.tier_1_price) },
+      { threshold: Number(row.tier_2_threshold), price: Number(row.tier_2_price) },
+      { threshold: Number(row.tier_3_threshold), price: Number(row.tier_3_price) },
+    ],
+    currentCount: Number(row.current_count ?? 0),
+    expiresAt: String(row.expires_at),
+    createdAt: row.created_at ? String(row.created_at) : undefined,
+  };
+}
+
+function mapBrand(row: Record<string, unknown>): Brand {
+  return {
+    id: String(row.id),
+    name: String(row.name),
+    slug: String(row.slug),
+    logoUrl: (row.logo_url as string | null | undefined) ?? null,
+    websiteUrl: (row.website_url as string | null | undefined) ?? null,
+    createdAt: row.created_at ? String(row.created_at) : undefined,
+  };
+}
+
+function mapDashboardDeal(row: Record<string, unknown>): DashboardDeal {
+  const brandRow = Array.isArray(row.brands) ? row.brands[0] : row.brands;
+
+  return {
+    ...mapGroupDeal(row),
+    slug: row.slug ? String(row.slug) : undefined,
+    merchant: row.merchant ? String(row.merchant) : undefined,
+    status: row.status as DealStatus | undefined,
+    brand: brandRow ? mapBrand(brandRow as Record<string, unknown>) : null,
+  };
+}
+
+function mapDashboardReservation(row: Record<string, unknown>): DashboardReservation {
+  const dealRow = Array.isArray(row.deals) ? row.deals[0] : row.deals;
+  const brandRow = dealRow && typeof dealRow === "object"
+    ? Array.isArray((dealRow as Record<string, unknown>).brands)
+      ? ((dealRow as Record<string, unknown>).brands as Record<string, unknown>[])[0]
+      : (dealRow as Record<string, unknown>).brands
+    : null;
+
+  return {
+    id: String(row.id),
+    dealId: String(row.deal_id),
+    name: String(row.name),
+    phone: String(row.phone),
+    email: String(row.email),
+    razorpayPaymentId: String(row.razorpay_payment_id),
+    createdAt: String(row.created_at),
+    amountPaid: Number(row.amount_paid ?? 9900),
+    paymentStatus: (row.payment_status as DashboardReservation["paymentStatus"]) ?? "paid",
+    razorpayOrderId: (row.razorpay_order_id as string | null | undefined) ?? null,
+    razorpaySignature: (row.razorpay_signature as string | null | undefined) ?? null,
+    finalPurchaseStatus: (row.final_purchase_status as DashboardReservation["finalPurchaseStatus"]) ?? "pending",
+    dealTitle: dealRow && typeof dealRow === "object" ? String((dealRow as Record<string, unknown>).title ?? "") : null,
+    brandName: brandRow && typeof brandRow === "object" ? String((brandRow as Record<string, unknown>).name ?? "") : null,
+  };
+}
+
+export function getDemoGroupDeal(): GroupDeal {
+  return {
+    id: "antinorm-combo",
+    title: "Antinorm Combo",
+    originalPrice: 2000,
+    tiers: [
+      { threshold: 20, price: 1600 },
+      { threshold: 25, price: 1500 },
+      { threshold: 30, price: 1400 },
+    ],
+    currentCount: 18,
+    expiresAt: getDemoExpiresAt(),
+  };
+}
+
+export const getGroupDealById = cache(async (id: string): Promise<GroupDeal | null> => {
+  const supabase = createAdminClient() ?? await createClient();
+  const demo = getDemoGroupDeal();
+
+  if (!supabase) {
+    return id === demo.id || id === "demo" || id === "antinorm-combo" ? demo : null;
+  }
+
+  const { data, error } = await supabase
+    .from("deals")
+    .select("id, title, original_price, tier_1_threshold, tier_1_price, tier_2_threshold, tier_2_price, tier_3_threshold, tier_3_price, current_count, expires_at, created_at")
+    .eq("id", id)
+    .maybeSingle();
+
+  if (error) {
+    if (id === demo.id || id === "demo" || id === "antinorm-combo") {
+      return demo;
+    }
+
+    throw error;
+  }
+
+  return data ? mapGroupDeal(data) : null;
+});
+
+export async function listReservationsByDeal(dealId: string, limit = 8): Promise<Reservation[]> {
+  const supabase = createAdminClient() ?? await createClient();
+  const demoReservations = () => {
+    const now = Date.now();
+    return [
+      ["Rohit", "Delhi", 2],
+      ["Ananya", "Mumbai", 4],
+      ["Kabir", "Bengaluru", 7],
+      ["Meera", "Pune", 9],
+      ["Dev", "Delhi", 12],
+    ].slice(0, limit).map(([name, city, minutes], index) => ({
+      id: `demo-reservation-${index}`,
+      dealId,
+      name: `${name} from ${city}`,
+      phone: "",
+      email: "",
+      razorpayPaymentId: `demo_${index}`,
+      createdAt: new Date(now - Number(minutes) * 60 * 1000).toISOString(),
+    }));
+  };
+
+  if (!supabase) {
+    return demoReservations();
+  }
+
+  const { data, error } = await supabase
+    .from("reservations")
+    .select("id, deal_id, name, phone, email, razorpay_payment_id, created_at")
+    .eq("deal_id", dealId)
+    .order("created_at", { ascending: false })
+    .limit(limit);
+
+  if (error) {
+    if (dealId === "antinorm-combo" || dealId === "demo") {
+      return demoReservations();
+    }
+
+    throw error;
+  }
+
+  return (data ?? []).map((row) => ({
+    id: String(row.id),
+    dealId: String(row.deal_id),
+    name: String(row.name),
+    phone: String(row.phone),
+    email: String(row.email),
+    razorpayPaymentId: String(row.razorpay_payment_id),
+    createdAt: String(row.created_at),
+  }));
+}
+
+export async function getUnlockedCouponForPhone(dealId: string, phone: string): Promise<{
+  deal: GroupDeal;
+  coupon: DealCoupon | null;
+  reservation: Reservation | null;
+}> {
+  const deal = await getGroupDealById(dealId);
+
+  if (!deal) {
+    throw new Error("Deal not found");
+  }
+
+  const supabase = createAdminClient();
+
+  if (!supabase) {
+    const tier = [...deal.tiers].reverse().find((item) => deal.currentCount >= item.threshold) ?? null;
+    const tierNumber = tier ? (deal.tiers.findIndex((item) => item.threshold === tier.threshold) + 1) as 1 | 2 | 3 : null;
+
+    return {
+      deal,
+      reservation: {
+        id: "demo-reservation",
+        dealId,
+        name: "Demo buyer",
+        phone,
+        email: "buyer@example.com",
+        razorpayPaymentId: "pay_demo",
+        createdAt: new Date().toISOString(),
+      },
+      coupon: tier && tierNumber
+        ? {
+            id: `demo-coupon-${tierNumber}`,
+            dealId,
+            tierNumber,
+            threshold: tier.threshold,
+            couponCode: ["ANTINORM20", "ANTINORM25", "ANTINORM30"][tierNumber - 1],
+          }
+        : null,
+    };
+  }
+
+  const phoneVariants = phoneLookupVariants(phone);
+  const { data: reservationRow, error: reservationError } = await supabase
+    .from("reservations")
+    .select("id, deal_id, name, phone, email, razorpay_payment_id, created_at")
+    .eq("deal_id", dealId)
+    .in("phone", phoneVariants)
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  if (reservationError) {
+    throw reservationError;
+  }
+
+  if (!reservationRow) {
+    return { deal, coupon: null, reservation: null };
+  }
+
+  const tier = [...deal.tiers].reverse().find((item) => deal.currentCount >= item.threshold) ?? null;
+
+  if (!tier) {
+    return {
+      deal,
+      coupon: null,
+      reservation: {
+        id: String(reservationRow.id),
+        dealId: String(reservationRow.deal_id),
+        name: String(reservationRow.name),
+        phone: String(reservationRow.phone),
+        email: String(reservationRow.email),
+        razorpayPaymentId: String(reservationRow.razorpay_payment_id),
+        createdAt: String(reservationRow.created_at),
+      },
+    };
+  }
+
+  const { data: couponRow, error: couponError } = await supabase
+    .from("deal_coupons")
+    .select("*")
+    .eq("deal_id", dealId)
+    .lte("threshold", deal.currentCount)
+    .order("threshold", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  if (couponError) {
+    throw couponError;
+  }
+
+  return {
+    deal,
+    reservation: {
+      id: String(reservationRow.id),
+      dealId: String(reservationRow.deal_id),
+      name: String(reservationRow.name),
+      phone: String(reservationRow.phone),
+      email: String(reservationRow.email),
+      razorpayPaymentId: String(reservationRow.razorpay_payment_id),
+      createdAt: String(reservationRow.created_at),
+    },
+    coupon: couponRow
+      ? {
+          id: String(couponRow.id),
+          dealId: String(couponRow.deal_id),
+          tierNumber: Number(couponRow.tier_number) as 1 | 2 | 3,
+          threshold: Number(couponRow.threshold),
+          couponCode: String(couponRow.coupon_code),
+          createdAt: String(couponRow.created_at),
+        }
+      : null,
+  };
+}
+
+export async function listBrandsAdmin(): Promise<Brand[]> {
+  const supabase = createAdminClient();
+
+  if (!supabase) {
+    return [{ id: "brand-demo-antinorm", name: "Antinorm", slug: "antinorm", websiteUrl: "https://antinorm.com" }];
+  }
+
+  const { data, error } = await supabase.from("brands").select("*").order("created_at", { ascending: false });
+
+  if (error) {
+    throw error;
+  }
+
+  return (data ?? []).map(mapBrand);
+}
+
+export async function getBrandByIdAdmin(id: string): Promise<Brand | null> {
+  const supabase = createAdminClient();
+
+  if (!supabase) {
+    return id === "brand-demo-antinorm"
+      ? { id, name: "Antinorm", slug: "antinorm", websiteUrl: "https://antinorm.com" }
+      : null;
+  }
+
+  const { data, error } = await supabase.from("brands").select("*").eq("id", id).maybeSingle();
+
+  if (error) {
+    throw error;
+  }
+
+  return data ? mapBrand(data) : null;
+}
+
+export async function listBrandUsersAdmin(brandId: string): Promise<BrandUser[]> {
+  const supabase = createAdminClient();
+
+  if (!supabase) {
+    return [];
+  }
+
+  const { data, error } = await supabase
+    .from("brand_users")
+    .select("*")
+    .eq("brand_id", brandId)
+    .order("created_at", { ascending: false });
+
+  if (error) {
+    throw error;
+  }
+
+  return (data ?? []).map((row) => ({
+    id: String(row.id),
+    brandId: String(row.brand_id),
+    userId: (row.user_id as string | null | undefined) ?? null,
+    email: String(row.email),
+    role: row.role as BrandUser["role"],
+    createdAt: String(row.created_at),
+  }));
+}
+
+export async function listDashboardDealsAdmin(): Promise<DashboardDeal[]> {
+  const supabase = createAdminClient();
+
+  if (!supabase) {
+    return [{ ...getDemoGroupDeal(), slug: "antinorm-combo", merchant: "Antinorm", status: "live", brand: { id: "brand-demo-antinorm", name: "Antinorm", slug: "antinorm" } }];
+  }
+
+  const { data, error } = await supabase
+    .from("deals")
+    .select("id, slug, title, merchant, status, original_price, tier_1_threshold, tier_1_price, tier_2_threshold, tier_2_price, tier_3_threshold, tier_3_price, current_count, expires_at, created_at, brands(id, name, slug, logo_url, website_url, created_at)")
+    .order("created_at", { ascending: false });
+
+  if (error) {
+    throw error;
+  }
+
+  return (data ?? []).map(mapDashboardDeal);
+}
+
+export async function listDashboardReservationsAdmin(): Promise<DashboardReservation[]> {
+  const supabase = createAdminClient();
+
+  if (!supabase) {
+    return [];
+  }
+
+  const { data, error } = await supabase
+    .from("reservations")
+    .select("id, deal_id, name, phone, email, razorpay_payment_id, razorpay_order_id, razorpay_signature, amount_paid, payment_status, final_purchase_status, created_at, deals(title, brands(name))")
+    .order("created_at", { ascending: false });
+
+  if (error) {
+    throw error;
+  }
+
+  return (data ?? []).map(mapDashboardReservation);
+}
+
+export async function listReservationsForDealAdmin(dealId: string): Promise<DashboardReservation[]> {
+  const supabase = createAdminClient();
+
+  if (!supabase) {
+    return [];
+  }
+
+  const { data, error } = await supabase
+    .from("reservations")
+    .select("id, deal_id, name, phone, email, razorpay_payment_id, razorpay_order_id, razorpay_signature, amount_paid, payment_status, final_purchase_status, created_at, deals(title, brands(name))")
+    .eq("deal_id", dealId)
+    .order("created_at", { ascending: false });
+
+  if (error) {
+    throw error;
+  }
+
+  return (data ?? []).map(mapDashboardReservation);
 }
 
 function filterDeals(deals: Deal[], filters: DealFilters = {}) {
@@ -511,4 +911,103 @@ export async function getDealByIdAdmin(id: string): Promise<Deal | null> {
   }
 
   return data ? mapDeal(data) : null;
+}
+
+export async function getBrandMembershipsForEmail(email: string): Promise<Array<BrandUser & { brand: Brand }>> {
+  const supabase = createAdminClient();
+
+  if (!supabase) {
+    return [];
+  }
+
+  const { data, error } = await supabase
+    .from("brand_users")
+    .select("*, brands(id, name, slug, logo_url, website_url, created_at)")
+    .eq("email", email.toLowerCase())
+    .order("created_at", { ascending: false });
+
+  if (error) {
+    throw error;
+  }
+
+  return (data ?? []).map((row) => {
+    const brandRow = Array.isArray(row.brands) ? row.brands[0] : row.brands;
+
+    return {
+      id: String(row.id),
+      brandId: String(row.brand_id),
+      userId: (row.user_id as string | null | undefined) ?? null,
+      email: String(row.email),
+      role: row.role as BrandUser["role"],
+      createdAt: String(row.created_at),
+      brand: mapBrand(brandRow),
+    };
+  });
+}
+
+export async function listPartnerDeals(brandId: string): Promise<DashboardDeal[]> {
+  const supabase = createAdminClient();
+
+  if (!supabase) {
+    return [];
+  }
+
+  const { data, error } = await supabase
+    .from("deals")
+    .select("id, slug, title, merchant, status, original_price, tier_1_threshold, tier_1_price, tier_2_threshold, tier_2_price, tier_3_threshold, tier_3_price, current_count, expires_at, created_at, brands(id, name, slug, logo_url, website_url, created_at)")
+    .eq("brand_id", brandId)
+    .order("created_at", { ascending: false });
+
+  if (error) {
+    throw error;
+  }
+
+  return (data ?? []).map(mapDashboardDeal);
+}
+
+export async function getPartnerDeal(brandId: string, dealId: string): Promise<DashboardDeal | null> {
+  const supabase = createAdminClient();
+
+  if (!supabase) {
+    return null;
+  }
+
+  const { data, error } = await supabase
+    .from("deals")
+    .select("id, slug, title, merchant, status, original_price, tier_1_threshold, tier_1_price, tier_2_threshold, tier_2_price, tier_3_threshold, tier_3_price, current_count, expires_at, created_at, brands(id, name, slug, logo_url, website_url, created_at)")
+    .eq("brand_id", brandId)
+    .eq("id", dealId)
+    .maybeSingle();
+
+  if (error) {
+    throw error;
+  }
+
+  return data ? mapDashboardDeal(data) : null;
+}
+
+export async function listPartnerReservations(brandId: string, dealId?: string): Promise<DashboardReservation[]> {
+  const supabase = createAdminClient();
+
+  if (!supabase) {
+    return [];
+  }
+
+  let query = supabase
+    .from("reservations")
+    .select("id, deal_id, name, phone, email, razorpay_payment_id, razorpay_order_id, razorpay_signature, amount_paid, payment_status, final_purchase_status, created_at, deals!inner(title, brand_id, brands(name))")
+    .eq("deals.brand_id", brandId)
+    .order("created_at", { ascending: false });
+
+  if (dealId) {
+    query = query.eq("deal_id", dealId);
+  }
+
+  const { data, error } = await query;
+
+  if (error) {
+    throw error;
+  }
+
+  return (data ?? []).map(mapDashboardReservation);
 }

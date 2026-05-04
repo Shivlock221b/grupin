@@ -5,11 +5,12 @@ import { redirect } from "next/navigation";
 import { createClient as createSupabaseClient } from "@supabase/supabase-js";
 import { z } from "zod";
 import { isAllowedAdminEmail, requireAdmin } from "@/lib/auth";
-import { createDeal, getDealById, getDealByIdAdmin, joinDeal, listInterestsByDeal, updateDeal } from "@/lib/data";
+import { createDeal, getBrandMembershipsForEmail, getDealById, getDealByIdAdmin, joinDeal, listInterestsByDeal, updateDeal } from "@/lib/data";
 import { createClient as createServerSupabaseClient } from "@/supabase/server";
 import { queueNotifications } from "@/lib/notifications";
 import { uploadDealHeroImage } from "@/lib/storage";
 import { slugify } from "@/lib/utils";
+import { createAdminClient } from "@/lib/supabase-admin";
 
 const joinSchema = z.object({
   dealId: z.string().min(1),
@@ -53,6 +54,32 @@ const adminLoginSchema = z.object({
   email: z.string().email(),
 });
 
+const brandSchema = z.object({
+  name: z.string().min(2),
+  slug: z.string().min(2).optional(),
+  logoUrl: z.string().url().optional().or(z.literal("")),
+  websiteUrl: z.string().url().optional().or(z.literal("")),
+});
+
+const brandUserSchema = z.object({
+  brandId: z.string().min(1),
+  email: z.string().email(),
+  role: z.enum(["owner", "manager", "viewer"]),
+});
+
+const reservationUpdateSchema = z.object({
+  reservationId: z.string().min(1),
+  paymentStatus: z.enum(["created", "paid", "failed", "refunded"]),
+  finalPurchaseStatus: z.enum(["pending", "completed", "cancelled"]),
+});
+
+const dealControlSchema = z.object({
+  dealId: z.string().min(1),
+  status: z.enum(["draft", "live", "threshold_met", "closed", "archived"]),
+  currentCount: z.coerce.number().min(0),
+  expiresAt: z.string().optional(),
+});
+
 export async function requestAdminLoginAction(_state: ActionState, formData: FormData): Promise<ActionState> {
   const parsed = adminLoginSchema.safeParse(Object.fromEntries(formData));
 
@@ -64,11 +91,12 @@ export async function requestAdminLoginAction(_state: ActionState, formData: For
   }
 
   const email = parsed.data.email.toLowerCase();
+  const brandMemberships = await getBrandMembershipsForEmail(email);
 
-  if (!isAllowedAdminEmail(email)) {
+  if (!isAllowedAdminEmail(email) && brandMemberships.length === 0) {
     return {
       success: false,
-      message: "This email is not allowed to access the admin dashboard.",
+      message: "This email is not allowed to access a dashboard.",
     };
   }
 
@@ -94,7 +122,7 @@ export async function requestAdminLoginAction(_state: ActionState, formData: For
     const { error } = await supabase.auth.signInWithOtp({
       email,
       options: {
-        emailRedirectTo: `${appUrl}/auth/callback?next=/admin/deals`,
+        emailRedirectTo: `${appUrl}/auth/callback?next=${isAllowedAdminEmail(email) ? "/admin/dashboard" : "/partner"}`,
         shouldCreateUser: false,
       },
     });
@@ -313,4 +341,200 @@ export async function signOutAdminAction() {
   }
 
   redirect("/admin/login");
+}
+
+export async function createBrandAction(_state: ActionState, formData: FormData): Promise<ActionState> {
+  await requireAdmin();
+  const parsed = brandSchema.safeParse(Object.fromEntries(formData));
+
+  if (!parsed.success) {
+    return { success: false, message: parsed.error.issues[0]?.message ?? "Check brand details." };
+  }
+
+  const supabase = createAdminClient();
+
+  if (!supabase) {
+    return { success: false, message: "Supabase admin client is not configured." };
+  }
+
+  const slug = parsed.data.slug?.trim() || slugify(parsed.data.name);
+  const { error } = await supabase.from("brands").insert({
+    name: parsed.data.name.trim(),
+    slug,
+    logo_url: parsed.data.logoUrl || null,
+    website_url: parsed.data.websiteUrl || null,
+  });
+
+  if (error) {
+    return { success: false, message: error.message };
+  }
+
+  revalidatePath("/admin/brands");
+  revalidatePath("/admin/dashboard");
+  return { success: true, message: "Brand created." };
+}
+
+export async function updateBrandAction(brandId: string, _state: ActionState, formData: FormData): Promise<ActionState> {
+  await requireAdmin();
+  const parsed = brandSchema.safeParse(Object.fromEntries(formData));
+
+  if (!parsed.success) {
+    return { success: false, message: parsed.error.issues[0]?.message ?? "Check brand details." };
+  }
+
+  const supabase = createAdminClient();
+
+  if (!supabase) {
+    return { success: false, message: "Supabase admin client is not configured." };
+  }
+
+  const { error } = await supabase
+    .from("brands")
+    .update({
+      name: parsed.data.name.trim(),
+      slug: parsed.data.slug?.trim() || slugify(parsed.data.name),
+      logo_url: parsed.data.logoUrl || null,
+      website_url: parsed.data.websiteUrl || null,
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", brandId);
+
+  if (error) {
+    return { success: false, message: error.message };
+  }
+
+  revalidatePath("/admin/brands");
+  revalidatePath(`/admin/brands/${brandId}`);
+  return { success: true, message: "Brand updated." };
+}
+
+export async function addBrandUserAction(_state: ActionState, formData: FormData): Promise<ActionState> {
+  await requireAdmin();
+  const parsed = brandUserSchema.safeParse(Object.fromEntries(formData));
+
+  if (!parsed.success) {
+    return { success: false, message: parsed.error.issues[0]?.message ?? "Check partner user details." };
+  }
+
+  const supabase = createAdminClient();
+
+  if (!supabase) {
+    return { success: false, message: "Supabase admin client is not configured." };
+  }
+
+  const { error } = await supabase.from("brand_users").upsert({
+    brand_id: parsed.data.brandId,
+    email: parsed.data.email.toLowerCase(),
+    role: parsed.data.role,
+  }, { onConflict: "brand_id,email" });
+
+  if (error) {
+    return { success: false, message: error.message };
+  }
+
+  revalidatePath(`/admin/brands/${parsed.data.brandId}`);
+  return { success: true, message: "Brand partner user saved." };
+}
+
+export async function assignDealBrandAction(dealId: string, _state: ActionState, formData: FormData): Promise<ActionState> {
+  await requireAdmin();
+  const brandId = String(formData.get("brandId") ?? "");
+  const supabase = createAdminClient();
+
+  if (!supabase) {
+    return { success: false, message: "Supabase admin client is not configured." };
+  }
+
+  const { error } = await supabase
+    .from("deals")
+    .update({ brand_id: brandId || null })
+    .eq("id", dealId);
+
+  if (error) {
+    return { success: false, message: error.message };
+  }
+
+  revalidatePath("/admin/deals");
+  revalidatePath("/admin/dashboard");
+  revalidatePath(`/admin/deals/${dealId}`);
+  return { success: true, message: "Deal brand assignment updated." };
+}
+
+export async function updateDealControlAction(_state: ActionState, formData: FormData): Promise<ActionState> {
+  await requireAdmin();
+  const parsed = dealControlSchema.safeParse(Object.fromEntries(formData));
+
+  if (!parsed.success) {
+    return { success: false, message: parsed.error.issues[0]?.message ?? "Check deal controls." };
+  }
+
+  const supabase = createAdminClient();
+
+  if (!supabase) {
+    return { success: false, message: "Supabase admin client is not configured." };
+  }
+
+  const { error } = await supabase
+    .from("deals")
+    .update({
+      status: parsed.data.status,
+      current_count: parsed.data.currentCount,
+      ...(parsed.data.expiresAt ? { expires_at: parsed.data.expiresAt } : {}),
+    })
+    .eq("id", parsed.data.dealId);
+
+  if (error) {
+    return { success: false, message: error.message };
+  }
+
+  revalidatePath("/admin/dashboard");
+  revalidatePath("/admin/deals");
+  revalidatePath(`/admin/deals/${parsed.data.dealId}`);
+  revalidatePath(`/deal/${parsed.data.dealId}`);
+  return { success: true, message: "Deal controls updated." };
+}
+
+export async function updateReservationAction(_state: ActionState, formData: FormData): Promise<ActionState> {
+  await requireAdmin();
+  const parsed = reservationUpdateSchema.safeParse(Object.fromEntries(formData));
+
+  if (!parsed.success) {
+    return { success: false, message: parsed.error.issues[0]?.message ?? "Check reservation status." };
+  }
+
+  const supabase = createAdminClient();
+
+  if (!supabase) {
+    return { success: false, message: "Supabase admin client is not configured." };
+  }
+
+  const { error } = await supabase
+    .from("reservations")
+    .update({
+      payment_status: parsed.data.paymentStatus,
+      final_purchase_status: parsed.data.finalPurchaseStatus,
+    })
+    .eq("id", parsed.data.reservationId);
+
+  if (error) {
+    return { success: false, message: error.message };
+  }
+
+  revalidatePath("/admin/reservations");
+  revalidatePath("/admin/dashboard");
+  return { success: true, message: "Reservation updated." };
+}
+
+export async function deleteReservationAction(formData: FormData) {
+  await requireAdmin();
+  const reservationId = String(formData.get("reservationId") ?? "");
+  const supabase = createAdminClient();
+
+  if (!supabase || !reservationId) {
+    return;
+  }
+
+  await supabase.from("reservations").delete().eq("id", reservationId);
+  revalidatePath("/admin/reservations");
+  revalidatePath("/admin/dashboard");
 }

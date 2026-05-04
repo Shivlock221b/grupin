@@ -46,7 +46,7 @@ export async function middleware(request: NextRequest) {
   } = await supabase.auth.getUser();
 
   if (
-    request.nextUrl.pathname.startsWith("/admin") &&
+    (request.nextUrl.pathname.startsWith("/admin") || request.nextUrl.pathname.startsWith("/partner")) &&
     request.nextUrl.pathname !== "/admin/login" &&
     !user
   ) {
@@ -59,5 +59,5 @@ export async function middleware(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/admin/:path*", "/api/admin/:path*", "/auth/callback"],
+  matcher: ["/admin/:path*", "/partner/:path*", "/api/admin/:path*", "/auth/callback"],
 };

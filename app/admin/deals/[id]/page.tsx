@@ -1,9 +1,10 @@
 import { notFound } from "next/navigation";
 import { AdminSignOutForm } from "@/components/admin-sign-out-form";
+import { DealBrandAssignmentForm } from "@/components/dashboard-action-forms";
 import { DealForm } from "@/components/deal-form";
-import { updateDealAction } from "@/lib/actions";
+import { assignDealBrandAction, updateDealAction } from "@/lib/actions";
 import { requireAdminOrRedirect } from "@/lib/auth";
-import { getDealByIdAdmin, listInterestsByDeal } from "@/lib/data";
+import { getDealByIdAdmin, listBrandsAdmin, listDashboardDealsAdmin, listInterestsByDeal } from "@/lib/data";
 
 type AdminDealDetailPageProps = {
   params: Promise<{ id: string }>;
@@ -12,13 +13,20 @@ type AdminDealDetailPageProps = {
 export default async function AdminDealDetailPage({ params }: AdminDealDetailPageProps) {
   const user = await requireAdminOrRedirect();
   const { id } = await params;
-  const [deal, interests] = await Promise.all([getDealByIdAdmin(id), listInterestsByDeal(id)]);
+  const [deal, interests, brands, dashboardDeals] = await Promise.all([
+    getDealByIdAdmin(id),
+    listInterestsByDeal(id),
+    listBrandsAdmin(),
+    listDashboardDealsAdmin(),
+  ]);
 
   if (!deal) {
     notFound();
   }
 
   const boundAction = updateDealAction.bind(null, deal.id);
+  const boundBrandAction = assignDealBrandAction.bind(null, deal.id);
+  const dashboardDeal = dashboardDeals.find((item) => item.id === deal.id);
 
   return (
     <div className="mx-auto max-w-6xl space-y-8 px-6 py-16">
@@ -51,6 +59,7 @@ export default async function AdminDealDetailPage({ params }: AdminDealDetailPag
           <AdminSignOutForm />
         </div>
       </div>
+      <DealBrandAssignmentForm action={boundBrandAction} brands={brands} currentBrandId={dashboardDeal?.brand?.id} />
       <DealForm action={boundAction} deal={deal} submitLabel="Save changes" />
     </div>
   );

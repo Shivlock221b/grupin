@@ -1,4 +1,12 @@
+insert into public.brands (id, name, slug, website_url)
+values ('00000000-0000-0000-0000-000000000201', 'Antinorm', 'antinorm', 'https://antinorm.com')
+on conflict (slug) do update
+set name = excluded.name,
+    website_url = excluded.website_url;
+
 insert into public.deals (
+  id,
+  brand_id,
   slug,
   title,
   merchant,
@@ -13,10 +21,53 @@ insert into public.deals (
   close_date,
   hero_image,
   terms,
-  featured
+  featured,
+  original_price,
+  tier_1_threshold,
+  tier_1_price,
+  tier_2_threshold,
+  tier_2_price,
+  tier_3_threshold,
+  tier_3_price,
+  current_count,
+  expires_at
 )
 values
   (
+    '00000000-0000-0000-0000-000000000101',
+    '00000000-0000-0000-0000-000000000201',
+    'antinorm-combo',
+    'Antinorm Combo',
+    'Antinorm',
+    'Apparel',
+    'Delhi',
+    'Online',
+    'A limited group buy for the Antinorm Combo. Reserve your spot, unlock the best tier, and complete purchase when the window closes.',
+    30,
+    'Reservation adjusts against the final Antinorm checkout amount',
+    20,
+    'live',
+    null,
+    'https://images.unsplash.com/photo-1523398002811-999ca8dec234?auto=format&fit=crop&w=1200&q=80',
+    array[
+      'Reservation amount is adjusted against final purchase.',
+      'Refunded if the group deal does not unlock.',
+      'Final purchase happens on the brand site.'
+    ],
+    true,
+    2000,
+    20,
+    1600,
+    25,
+    1500,
+    30,
+    1400,
+    18,
+    now() + interval '24 hours'
+  ),
+  (
+    gen_random_uuid(),
+    null,
     'strike-zone-bowling-pack',
     'Strike Zone Weekend Bowling Credits',
     'Strike Zone',
@@ -35,9 +86,20 @@ values
       'Credits can be split across visits.',
       'Non-transferable after voucher issuance.'
     ],
-    true
+    true,
+    2000,
+    20,
+    1600,
+    25,
+    1500,
+    30,
+    1400,
+    2,
+    now() + interval '24 hours'
   ),
   (
+    gen_random_uuid(),
+    null,
     'glow-house-salon-wallet',
     'Glow House Salon Wallet',
     'Glow House',
@@ -56,9 +118,20 @@ values
       'Cannot be combined with in-store festival discounts.',
       'Appointment booking remains subject to availability.'
     ],
-    true
+    true,
+    2000,
+    20,
+    1600,
+    25,
+    1500,
+    30,
+    1400,
+    2,
+    now() + interval '24 hours'
   ),
   (
+    gen_random_uuid(),
+    null,
     'turbo-track-race-credits',
     'Turbo Track Go-Kart Credits',
     'Turbo Track',
@@ -77,9 +150,35 @@ values
       'Helmet and safety gear included.',
       'Weekend surcharges are payable at venue if applicable.'
     ],
-    false
+    false,
+    2000,
+    20,
+    1600,
+    25,
+    1500,
+    30,
+    1400,
+    1,
+    now() + interval '24 hours'
   )
 on conflict (slug) do nothing;
+
+insert into public.reservations (deal_id, name, phone, email, razorpay_payment_id, created_at)
+values
+  ('00000000-0000-0000-0000-000000000101', 'Rohit', '+91 9000000001', 'rohit@example.com', 'pay_seed_1', now() - interval '2 minutes'),
+  ('00000000-0000-0000-0000-000000000101', 'Ananya', '+91 9000000002', 'ananya@example.com', 'pay_seed_2', now() - interval '5 minutes'),
+  ('00000000-0000-0000-0000-000000000101', 'Kabir', '+91 9000000003', 'kabir@example.com', 'pay_seed_3', now() - interval '8 minutes'),
+  ('00000000-0000-0000-0000-000000000101', 'Meera', '+91 9000000004', 'meera@example.com', 'pay_seed_4', now() - interval '11 minutes')
+on conflict do nothing;
+
+insert into public.deal_coupons (deal_id, tier_number, threshold, coupon_code)
+values
+  ('00000000-0000-0000-0000-000000000101', 1, 20, 'ANTINORM20'),
+  ('00000000-0000-0000-0000-000000000101', 2, 25, 'ANTINORM25'),
+  ('00000000-0000-0000-0000-000000000101', 3, 30, 'ANTINORM30')
+on conflict (deal_id, tier_number) do update
+set threshold = excluded.threshold,
+    coupon_code = excluded.coupon_code;
 
 insert into public.profiles (
   full_name,
