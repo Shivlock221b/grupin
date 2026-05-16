@@ -1,6 +1,5 @@
-import { createServerClient } from "@supabase/ssr";
 import { NextResponse } from "next/server";
-import { isAdminUser } from "@/lib/auth";
+import { hasAdminKeywordSessionFromCookieHeader } from "@/lib/admin-keyword-auth";
 import { getDealByIdAdmin, listInterestsByDeal } from "@/lib/data";
 
 type RouteContext = {
@@ -8,34 +7,7 @@ type RouteContext = {
 };
 
 export async function GET(request: Request, { params }: RouteContext) {
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-
-  if (!supabaseUrl || !supabaseAnonKey) {
-    return NextResponse.json({ error: "Supabase auth is not configured" }, { status: 500 });
-  }
-
-  const supabase = createServerClient(supabaseUrl, supabaseAnonKey, {
-    cookies: {
-      getAll() {
-        return request.headers.get("cookie")
-          ?.split(";")
-          .map((cookie) => cookie.trim())
-          .filter(Boolean)
-          .map((cookie) => {
-            const [name, ...rest] = cookie.split("=");
-            return { name, value: rest.join("=") };
-          }) ?? [];
-      },
-      setAll() {},
-    },
-  });
-
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
-  if (!user || !(await isAdminUser(user.id, user.email))) {
+  if (!hasAdminKeywordSessionFromCookieHeader(request.headers.get("cookie"))) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 

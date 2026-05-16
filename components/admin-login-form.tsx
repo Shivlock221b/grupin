@@ -14,13 +14,13 @@ export function AdminLoginForm() {
   return (
     <form action={formAction} className="space-y-4 rounded-[2rem] bg-white p-8 shadow-[0_24px_70px_rgba(58,80,64,0.10)]">
       <label className="space-y-2 text-sm font-medium text-[var(--forest)]">
-        Admin email
+        Admin keyword
         <input
           required
-          type="email"
-          name="email"
+          type="password"
+          name="keyword"
           className="w-full rounded-2xl border border-[rgba(22,38,32,0.14)] bg-[var(--mist)] px-4 py-3"
-          placeholder="you@yourdomain.com"
+          placeholder="Enter keyword"
         />
       </label>
       <button
@@ -28,7 +28,7 @@ export function AdminLoginForm() {
         disabled={pending}
         className="w-full rounded-full bg-[var(--forest)] px-6 py-3 text-sm font-semibold text-white disabled:opacity-60"
       >
-        {pending ? "Sending link..." : "Email me an admin login link"}
+        {pending ? "Checking..." : "Enter admin portal"}
       </button>
       {state.message ? (
         <p className={state.success ? "text-sm text-emerald-700" : "text-sm text-red-700"}>{state.message}</p>

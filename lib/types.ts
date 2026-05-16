@@ -130,3 +130,151 @@ export type DealCoupon = {
   couponCode: string;
   createdAt?: string;
 };
+
+export type PrivateUnlock = {
+  id: string;
+  dealId: string;
+  shareCode: string;
+  threshold: number;
+  discountPercent: number;
+  couponCode: string;
+  currentCount: number;
+  expiresAt: string;
+  createdAt?: string;
+};
+
+export type PrivateUnlockMember = {
+  id: string;
+  unlockId: string;
+  dealId: string;
+  name: string;
+  phone: string;
+  email: string;
+  razorpayPaymentId: string;
+  createdAt: string;
+};
+
+export type PrivateUnlockDealConfig = {
+  id: string;
+  dealId: string;
+  enabled: boolean;
+  headline: string;
+  brandName: string;
+  brandLogo?: string | null;
+  cardImage: string;
+  bannerImage: string;
+  category: string;
+  shortDescription: string;
+  threshold: number;
+  discountPercent: number;
+  tokenAmount: number;
+  couponPrefix: string;
+  sortOrder: number;
+  featured: boolean;
+  source?: string | null;
+  sourceFile?: string | null;
+  voucherUrl?: string | null;
+  scrapedDiscountPercent?: number | null;
+  voucherValue?: number;
+  flatDiscountAmount?: number;
+  finalPayableAfterUnlock?: number | null;
+  couponStockTotal: number;
+  couponStockClaimed: number;
+  isOutOfStock?: boolean;
+  deal: GroupDeal;
+  createdAt?: string;
+};
+
+export type AdminPrivateUnlockDeal = PrivateUnlockDealConfig & {
+  slug: string;
+  title: string;
+  merchant: string;
+  status: DealStatus;
+  description?: string | null;
+  brand?: Brand | null;
+  roomsCount: number;
+  membersCount: number;
+  tokenRevenue: number;
+  couponClaimsCount: number;
+  finalRevenue: number;
+};
+
+export type AdminPrivateUnlockMember = PrivateUnlockMember & {
+  amountPaid: number;
+  paymentStatus: "created" | "paid" | "failed" | "refunded";
+  razorpayOrderId?: string | null;
+  razorpaySignature?: string | null;
+  profileId?: string | null;
+  dealTitle?: string | null;
+  brandName?: string | null;
+  shareCode?: string | null;
+  unlockCount?: number;
+  unlockThreshold?: number;
+};
+
+export type AdminCouponClaim = {
+  id: string;
+  unlockedCouponId: string;
+  profileId: string;
+  dealId: string;
+  razorpayPaymentId: string;
+  razorpayOrderId?: string | null;
+  amountPaid: number;
+  status: "paid" | "failed" | "refunded";
+  emailDeliveryStatus: "not_requested" | "pending" | "delivered";
+  createdAt: string;
+  dealTitle?: string | null;
+  brandName?: string | null;
+  buyerName?: string | null;
+  buyerPhone?: string | null;
+  buyerEmail?: string | null;
+};
+
+export type AdminPrivateUnlockRoom = {
+  id: string;
+  dealId: string;
+  shareCode: string;
+  threshold: number;
+  currentCount: number;
+  expiresAt: string;
+  createdAt: string;
+  dealTitle?: string | null;
+  brandName?: string | null;
+};
+
+export type AccountUnlockRoom = {
+  id: string;
+  dealId: string;
+  shareCode: string;
+  threshold: number;
+  currentCount: number;
+  expiresAt: string;
+  createdAt: string;
+  dealTitle: string;
+  brandName: string;
+};
+
+export type AccountProfile = {
+  id: string;
+  fullName: string;
+  email: string;
+  phone: string;
+  phoneVerified: boolean;
+  createdAt?: string;
+};
+
+export type AccountUnlockedCoupon = {
+  id: string;
+  profileId: string;
+  dealId: string;
+  unlockId: string;
+  status: "payment_pending" | "claimed" | "expired";
+  unlockedPrice: number;
+  tokenAmountPaid: number;
+  remainingAmount: number;
+  discountPercent: number;
+  emailDeliveryStatus: "not_requested" | "pending" | "delivered";
+  createdAt: string;
+  dealTitle: string;
+  brandName: string;
+};

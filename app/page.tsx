@@ -1,5 +1,5 @@
-import { GruPinLandingPage } from "@/components/grupin-landing-page";
+import { redirect } from "next/navigation";
 
 export default function HomePage() {
-  return <GruPinLandingPage />;
+  redirect("/unlock-deals");
 }

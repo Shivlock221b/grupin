@@ -1,5 +1,6 @@
 import { createClient } from "@/supabase/server";
 import { createAdminClient } from "@/lib/supabase-admin";
+import { getAdminPortalPath, hasAdminKeywordSession } from "@/lib/admin-keyword-auth";
 import { getBrandMembershipsForEmail } from "@/lib/data";
 import { redirect } from "next/navigation";
 
@@ -57,35 +58,33 @@ export async function isAdminUser(userId: string, email?: string | null) {
 }
 
 export async function requireAdmin() {
-  const user = await getCurrentUser();
+  const hasSession = await hasAdminKeywordSession();
 
-  if (!user) {
+  if (!hasSession) {
     throw new Error("Admin access required");
   }
 
-  const isAdmin = await isAdminUser(user.id, user.email);
-
-  if (!isAdmin) {
-    throw new Error("Admin access required");
-  }
-
-  return user;
+  return {
+    id: "keyword-admin",
+    email: "admin@keyword.local",
+    app_metadata: { role: "admin" },
+    isKeywordAdmin: true,
+  };
 }
 
 export async function requireAdminOrRedirect() {
-  const user = await getCurrentUser();
+  const hasSession = await hasAdminKeywordSession();
 
-  if (!user) {
-    redirect("/admin/login");
+  if (!hasSession) {
+    redirect(getAdminPortalPath());
   }
 
-  const isAdmin = await isAdminUser(user.id, user.email);
-
-  if (!isAdmin) {
-    redirect("/admin/login?error=not_authorized");
-  }
-
-  return user;
+  return {
+    id: "keyword-admin",
+    email: "admin@keyword.local",
+    app_metadata: { role: "admin" },
+    isKeywordAdmin: true,
+  };
 }
 
 export async function requireBrandPartnerOrRedirect() {

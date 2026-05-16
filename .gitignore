@@ -11,4 +11,8 @@ out
 test-results
 playwright-report
 
+# local one-off data import/cleanup artifacts
+scripts/*.mjs
+supabase/seeds/private_unlock_deals_seed.csv
+
 .DS_Store

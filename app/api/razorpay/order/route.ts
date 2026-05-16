@@ -1,11 +1,91 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getGroupDealById } from "@/lib/data";
-
-const amount = 99 * 100;
+import { getCurrentAccountProfile } from "@/lib/account-auth";
+import { createAdminClient } from "@/lib/supabase-admin";
+import { getGroupDealById, getPlatformCouponInventory, getPrivateUnlockDealConfigByDealId, hasRecentPrivateUnlockJoin } from "@/lib/data";
+import { phoneLookupVariants } from "@/lib/otp";
 
 export async function POST(request: NextRequest) {
   try {
-    const { dealId } = await request.json();
+    const { dealId, privateUnlock, purpose, unlockedCouponId, phone } = await request.json();
+
+    if (purpose === "coupon_claim") {
+      if (typeof unlockedCouponId !== "string") {
+        return NextResponse.json({ message: "Unlocked coupon id is required." }, { status: 400 });
+      }
+
+      const profile = await getCurrentAccountProfile();
+      const supabase = createAdminClient();
+
+      if (!profile || !supabase) {
+        return NextResponse.json({ message: "Login required." }, { status: 401 });
+      }
+
+      const { data: coupon, error } = await supabase
+        .from("unlocked_coupons")
+        .select("id, deal_id, remaining_amount, status, deals(title)")
+        .eq("id", unlockedCouponId)
+        .eq("profile_id", profile.id)
+        .maybeSingle();
+
+      if (error) {
+        throw error;
+      }
+
+      if (!coupon) {
+        return NextResponse.json({ message: "Unlocked coupon not found." }, { status: 404 });
+      }
+
+      if (coupon.status !== "payment_pending") {
+        return NextResponse.json({ message: "This coupon is already paid." }, { status: 409 });
+      }
+
+      const keyId = process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID;
+      const keySecret = process.env.RAZORPAY_KEY_SECRET;
+      const amount = Number(coupon.remaining_amount);
+
+      if (!keyId || !keySecret) {
+        return NextResponse.json({
+          keyId: "rzp_test_demo",
+          orderId: `order_coupon_demo_${Date.now()}`,
+          amount,
+          currency: "INR",
+          demoMode: true,
+        });
+      }
+
+      const auth = Buffer.from(`${keyId}:${keySecret}`).toString("base64");
+      const response = await fetch("https://api.razorpay.com/v1/orders", {
+        method: "POST",
+        headers: {
+          Authorization: `Basic ${auth}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          amount,
+          currency: "INR",
+          receipt: `coupon_${unlockedCouponId}_${Date.now()}`.slice(0, 40),
+          notes: {
+            profileId: profile.id,
+            unlockedCouponId,
+          },
+        }),
+      });
+      const order = await response.json();
+
+      if (!response.ok) {
+        return NextResponse.json(
+          { message: order.error?.description ?? "Could not create Razorpay order." },
+          { status: response.status }
+        );
+      }
+
+      return NextResponse.json({
+        keyId,
+        orderId: order.id,
+        amount: order.amount,
+        currency: order.currency,
+      });
+    }
 
     if (!dealId || typeof dealId !== "string") {
       return NextResponse.json({ message: "Deal id is required." }, { status: 400 });
@@ -17,9 +97,49 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ message: "Deal not found." }, { status: 404 });
     }
 
-    if (new Date(deal.expiresAt).getTime() <= Date.now()) {
+    if (!privateUnlock && new Date(deal.expiresAt).getTime() <= Date.now()) {
       return NextResponse.json({ message: "Deal expired." }, { status: 410 });
     }
+
+    if (privateUnlock) {
+      const [config, platformInventory] = await Promise.all([
+        getPrivateUnlockDealConfigByDealId(deal.id),
+        getPlatformCouponInventory(),
+      ]);
+
+      if (platformInventory.outOfStock || config?.isOutOfStock) {
+        return NextResponse.json({ message: "This voucher is out of stock.", outOfStock: true }, { status: 409 });
+      }
+
+      if (typeof phone === "string" && phone.trim()) {
+        const supabase = createAdminClient();
+
+        if (supabase) {
+          const { data: existingMember, error: existingError } = await supabase
+            .from("private_unlock_members")
+            .select("id")
+            .eq("deal_id", deal.id)
+            .in("phone", phoneLookupVariants(phone))
+            .limit(1)
+            .maybeSingle();
+
+          if (existingError) {
+            throw existingError;
+          }
+
+          if (existingMember) {
+            return NextResponse.json({ message: "You have already joined this coupon unlock.", alreadyJoined: true }, { status: 409 });
+          }
+        }
+
+        if (await hasRecentPrivateUnlockJoin(phone)) {
+          return NextResponse.json({ message: "You can unlock only one coupon in a 24-hour window. Please try again later." }, { status: 429 });
+        }
+      }
+    }
+
+    const tokenAmount = privateUnlock ? (await getPrivateUnlockDealConfigByDealId(deal.id))?.tokenAmount ?? 99 : 99;
+    const amount = tokenAmount * 100;
 
     const keyId = process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID;
     const keySecret = process.env.RAZORPAY_KEY_SECRET;
