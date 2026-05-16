@@ -430,7 +430,16 @@ export async function listPrivateUnlockDealConfigs(): Promise<PrivateUnlockDealC
   return configs.filter(Boolean) as PrivateUnlockDealConfig[];
 }
 
-export async function upsertProfileFromBuyer(input: { name: string; phone: string; email: string; phoneVerified?: boolean }): Promise<AccountProfile | null> {
+function placeholderEmailForPhone(phone: string) {
+  const digits = normalizePhone(phone).replace(/\D/g, "").slice(-10) || "unknown";
+  return `phone-${digits}@grupin.local`;
+}
+
+export function isPlaceholderEmail(email?: string | null) {
+  return Boolean(email?.endsWith("@grupin.local"));
+}
+
+export async function upsertProfileFromBuyer(input: { name?: string; phone: string; email?: string; phoneVerified?: boolean }): Promise<AccountProfile | null> {
   const supabase = createAdminClient();
 
   if (!supabase) {
@@ -438,6 +447,8 @@ export async function upsertProfileFromBuyer(input: { name: string; phone: strin
   }
 
   const normalizedPhone = normalizePhone(input.phone);
+  const safeName = input.name?.trim() || "GruPin user";
+  const safeEmail = input.email?.trim() || placeholderEmailForPhone(input.phone);
   const { data: existingByPhone, error: phoneError } = await supabase
     .from("profiles")
     .select("id, full_name, email, phone, phone_verified, created_at")
@@ -453,8 +464,8 @@ export async function upsertProfileFromBuyer(input: { name: string; phone: strin
     const { data, error } = await supabase
       .from("profiles")
       .update({
-        full_name: input.name.trim() || existingByPhone.full_name,
-        email: input.email.trim() || existingByPhone.email,
+        full_name: input.name?.trim() || existingByPhone.full_name || safeName,
+        email: input.email?.trim() || existingByPhone.email || safeEmail,
         phone: normalizedPhone,
         ...(input.phoneVerified ? { phone_verified: true, last_login_at: new Date().toISOString() } : {}),
       })
@@ -472,7 +483,7 @@ export async function upsertProfileFromBuyer(input: { name: string; phone: strin
   const { data: existingByEmail, error: emailLookupError } = await supabase
     .from("profiles")
     .select("id, full_name, email, phone, phone_verified, created_at")
-    .eq("email", input.email.trim())
+    .eq("email", safeEmail)
     .limit(1)
     .maybeSingle();
 
@@ -484,7 +495,7 @@ export async function upsertProfileFromBuyer(input: { name: string; phone: strin
     const { data, error } = await supabase
       .from("profiles")
       .update({
-        full_name: input.name.trim() || existingByEmail.full_name,
+        full_name: input.name?.trim() || existingByEmail.full_name || safeName,
         phone: normalizedPhone,
         ...(input.phoneVerified ? { phone_verified: true, last_login_at: new Date().toISOString() } : {}),
       })
@@ -502,8 +513,8 @@ export async function upsertProfileFromBuyer(input: { name: string; phone: strin
   const { data, error } = await supabase
     .from("profiles")
     .insert({
-      full_name: input.name.trim() || "GruPin user",
-      email: input.email.trim(),
+      full_name: safeName,
+      email: safeEmail,
       phone: normalizedPhone,
       phone_verified: Boolean(input.phoneVerified),
       ...(input.phoneVerified ? { last_login_at: new Date().toISOString() } : {}),

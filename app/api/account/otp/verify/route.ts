@@ -21,15 +21,7 @@ export async function POST(request: NextRequest) {
     let profile = await getProfileByPhone(phone);
 
     const isTestCredential = isTestOtpCredential(phone, code);
-    const providedEmail = typeof email === "string" && isWellFormattedEmail(email)
-      ? email
-      : isTestCredential
-        ? "testuser+9876543210@grupin.local"
-        : "";
-
-    if (!profile && !providedEmail) {
-      return NextResponse.json({ message: "Enter a valid email address for voucher delivery." }, { status: 400 });
-    }
+    const providedEmail = typeof email === "string" && isWellFormattedEmail(email) ? email : "";
 
     if (!profile) {
       profile = await upsertProfileFromBuyer({

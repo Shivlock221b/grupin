@@ -63,16 +63,12 @@ function formatTimeLeft(expiresAt: string, now: number | null) {
 }
 
 function validateForm(form: { name: string; phone: string; email: string }) {
-  if (!form.name.trim()) {
-    return "Name is required.";
-  }
-
   if (!/^[0-9+\-\s()]{8,}$/.test(form.phone.trim())) {
     return "Enter a valid phone number.";
   }
 
-  if (!isWellFormattedEmail(form.email)) {
-    return "Enter a valid email address for voucher delivery.";
+  if (form.email.trim() && !isWellFormattedEmail(form.email)) {
+    return "Enter a valid email address or leave it blank.";
   }
 
   return "";
@@ -664,7 +660,7 @@ export function PrivateUnlockExperience({ deal, config = null, initialUnlock = n
             <div className="flex items-start justify-between gap-3">
               <div>
                 <h2 className="text-2xl font-semibold">Lock your spot</h2>
-                <p className="mt-1 text-sm text-slate-500">Verify your phone, then pay {formatPrice(tokenAmount)}. It is adjusted in the final amount.</p>
+                <p className="mt-1 text-sm text-slate-500">Verify your phone, then pay {formatPrice(tokenAmount)}. Voucher delivery can happen on your phone.</p>
                 {isLoggedIn ? <p className="mt-2 text-xs font-semibold text-emerald-700">Using your logged-in GruPin profile.</p> : null}
               </div>
               <button type="button" onClick={() => setIsModalOpen(false)} className="grid h-9 w-9 place-items-center rounded-full border border-slate-200">
@@ -676,7 +672,7 @@ export function PrivateUnlockExperience({ deal, config = null, initialUnlock = n
               <form onSubmit={handleDetailsSubmit}>
                 <div className="mt-5 space-y-3">
                   <label className="block text-sm font-medium text-slate-700">
-                    Name
+                    Name <span className="text-slate-400">(optional)</span>
                     <input value={form.name} onChange={(event) => setForm((current) => ({ ...current, name: event.target.value }))} className="mt-1 h-11 w-full rounded-[8px] border border-slate-200 px-3 outline-none focus:border-emerald-500" />
                   </label>
                   <label className="block text-sm font-medium text-slate-700">
@@ -684,7 +680,7 @@ export function PrivateUnlockExperience({ deal, config = null, initialUnlock = n
                     <input value={form.phone} onChange={(event) => setForm((current) => ({ ...current, phone: event.target.value }))} className="mt-1 h-11 w-full rounded-[8px] border border-slate-200 px-3 outline-none focus:border-emerald-500" />
                   </label>
                   <label className="block text-sm font-medium text-slate-700">
-                    Email
+                    Email <span className="text-slate-400">(optional)</span>
                     <input type="email" value={form.email} onChange={(event) => setForm((current) => ({ ...current, email: event.target.value }))} className="mt-1 h-11 w-full rounded-[8px] border border-slate-200 px-3 outline-none focus:border-emerald-500" />
                   </label>
                 </div>

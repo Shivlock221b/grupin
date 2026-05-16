@@ -134,19 +134,16 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
     const { dealId, code, name, phone, email, razorpayPaymentId, razorpayOrderId, razorpaySignature } = body;
 
-    if (
-      typeof name !== "string" ||
-      typeof phone !== "string" ||
-      typeof email !== "string" ||
-      typeof razorpayPaymentId !== "string"
-    ) {
+    if (typeof phone !== "string" || typeof razorpayPaymentId !== "string") {
       return NextResponse.json({ message: "Buyer details and payment id are required." }, { status: 400 });
     }
 
     const normalizedPhone = normalizePhone(phone);
     const currentProfile = await getCurrentAccountProfile();
+    const buyerName = typeof name === "string" && name.trim() ? name.trim() : currentProfile?.fullName || "GruPin user";
+    const buyerEmail = typeof email === "string" && isWellFormattedEmail(email) ? email.trim() : currentProfile?.email || "";
 
-    if (!name.trim() || normalizedPhone.length < 8 || !isWellFormattedEmail(email)) {
+    if (normalizedPhone.length < 8 || (typeof email === "string" && email.trim() && !isWellFormattedEmail(email))) {
       return NextResponse.json({ message: "Enter valid buyer details." }, { status: 400 });
     }
 
@@ -158,7 +155,7 @@ export async function POST(request: NextRequest) {
 
     let unlock = typeof code === "string" && code.trim() ? await getPrivateUnlockByCode(code) : null;
     let targetDealId = unlock?.dealId ?? (typeof dealId === "string" ? dealId : "");
-    const profile = currentProfile ?? await upsertProfileFromBuyer({ name, phone, email });
+    const profile = currentProfile ?? await upsertProfileFromBuyer({ name: buyerName, phone, email: buyerEmail });
 
     if (!isUuid(targetDealId)) {
       return NextResponse.json({ message: "Valid deal id is required." }, { status: 400 });
@@ -264,9 +261,9 @@ export async function POST(request: NextRequest) {
         unlock_id: unlock.id,
         deal_id: targetDealId,
         profile_id: profile?.id ?? null,
-        name: name.trim(),
+        name: buyerName,
         phone: normalizedPhone,
-        email: email.trim(),
+        email: buyerEmail || `phone-${normalizedPhone.replace(/\D/g, "").slice(-10)}@grupin.local`,
         razorpay_payment_id: razorpayPaymentId,
         razorpay_order_id: typeof razorpayOrderId === "string" ? razorpayOrderId : null,
         razorpay_signature: typeof razorpaySignature === "string" ? razorpaySignature : null,
@@ -311,9 +308,9 @@ export async function POST(request: NextRequest) {
         `Room: ${escapeTelegramHtml(updatedUnlock.shareCode)}`,
         `Progress: ${updatedUnlock.currentCount}/${updatedUnlock.threshold}`,
         "",
-        `Name: ${escapeTelegramHtml(name.trim())}`,
+        `Name: ${escapeTelegramHtml(buyerName)}`,
         `Phone: ${escapeTelegramHtml(normalizedPhone)}`,
-        `Email: ${escapeTelegramHtml(email.trim())}`,
+        `Email: ${escapeTelegramHtml(buyerEmail || "Not provided")}`,
         `Token paid: ₹${configForStock?.tokenAmount ?? 99}`,
         `Payment ID: ${escapeTelegramHtml(razorpayPaymentId)}`,
       ].join("\n"),
