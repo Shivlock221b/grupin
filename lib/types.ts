@@ -178,6 +178,8 @@ export type PrivateUnlockDealConfig = {
   voucherValue?: number;
   flatDiscountAmount?: number;
   finalPayableAfterUnlock?: number | null;
+  howToUse?: string | null;
+  termsAndConditions?: string | null;
   couponStockTotal: number;
   couponStockClaimed: number;
   isOutOfStock?: boolean;

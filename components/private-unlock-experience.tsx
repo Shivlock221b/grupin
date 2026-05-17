@@ -2,7 +2,7 @@
 
 import { FormEvent, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { CheckCircle2, Clock, Copy, Flame, LockKeyhole, Share2, ShieldCheck, Sparkles, Users, X } from "lucide-react";
+import { CheckCircle2, ChevronDown, Clock, Copy, FileText, Flame, LockKeyhole, Share2, ShieldCheck, Sparkles, Users, X } from "lucide-react";
 import { GroupDeal, PrivateUnlock, PrivateUnlockDealConfig, PrivateUnlockMember } from "@/lib/types";
 import { isWellFormattedEmail } from "@/lib/validation";
 import { AccountMenu } from "@/components/account-menu";
@@ -74,6 +74,41 @@ function validateForm(form: { name: string; phone: string; email: string }) {
   return "";
 }
 
+function splitVoucherText(value?: string | null) {
+  return String(value ?? "")
+    .split("|")
+    .map((item) => item.trim())
+    .filter(Boolean);
+}
+
+function VoucherInfoDropdown({ title, items, defaultOpen = false }: { title: string; items: string[]; defaultOpen?: boolean }) {
+  if (!items.length) {
+    return null;
+  }
+
+  return (
+    <details open={defaultOpen} className="group rounded-[8px] border border-slate-200 bg-white">
+      <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-4 py-3">
+        <span className="inline-flex min-w-0 items-center gap-2 text-sm font-semibold text-slate-950">
+          <FileText className="h-4 w-4 shrink-0 text-cyan-700" />
+          {title}
+        </span>
+        <ChevronDown className="h-4 w-4 shrink-0 text-slate-400 transition group-open:rotate-180" />
+      </summary>
+      <div className="max-h-72 overflow-y-auto border-t border-slate-100 px-4 py-3">
+        <ol className="space-y-2 text-sm leading-6 text-slate-600">
+          {items.map((item, index) => (
+            <li key={`${title}-${index}`} className="flex gap-2">
+              <span className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-cyan-50 text-xs font-semibold text-cyan-700">{index + 1}</span>
+              <span>{item}</span>
+            </li>
+          ))}
+        </ol>
+      </div>
+    </details>
+  );
+}
+
 async function loadRazorpayScript() {
   if (window.Razorpay) {
     return true;
@@ -123,6 +158,8 @@ export function PrivateUnlockExperience({ deal, config = null, initialUnlock = n
   const brandName = config?.brandName || deal.title;
   const voucherCredit = config?.voucherValue ?? deal.originalPrice;
   const couponsLeft = config ? Math.max(0, config.couponStockTotal - config.couponStockClaimed) : null;
+  const howToUseItems = splitVoucherText(config?.howToUse);
+  const termsItems = splitVoucherText(config?.termsAndConditions);
   const timeLeftLabel = unlock ? formatTimeLeft(unlock.expiresAt, now) : "";
   const shareUrl = useMemo(() => {
     if (!unlock || typeof window === "undefined") {
@@ -457,8 +494,8 @@ export function PrivateUnlockExperience({ deal, config = null, initialUnlock = n
           <AccountMenu />
         </div>
       </div>
-      <section className="mx-auto grid max-w-6xl gap-6 px-4 py-6 lg:grid-cols-[1.08fr_0.92fr] lg:py-10">
-        <div className="relative min-h-[580px] overflow-hidden rounded-[8px] bg-slate-950 text-white shadow-[0_24px_80px_rgba(120,53,15,0.22)]">
+      <section className="mx-auto grid max-w-6xl items-start gap-6 px-4 py-6 lg:grid-cols-[1.08fr_0.92fr] lg:py-10">
+        <div className="relative min-h-[580px] self-start overflow-hidden rounded-[8px] bg-slate-950 text-white shadow-[0_24px_80px_rgba(120,53,15,0.22)]">
           {heroImage ? (
             <>
               <img src={heroImage} alt="" className="absolute inset-0 h-full w-full object-cover opacity-30 blur-2xl scale-110" />
@@ -616,6 +653,17 @@ export function PrivateUnlockExperience({ deal, config = null, initialUnlock = n
               ) : null}
             </div>
           </div>
+
+          {(howToUseItems.length || termsItems.length) ? (
+            <div className="space-y-3 rounded-[8px] border border-emerald-100 bg-white p-5">
+              <div>
+                <p className="text-xs font-bold uppercase tracking-[0.16em] text-cyan-700">Voucher details</p>
+                <h2 className="mt-1 text-lg font-semibold text-slate-950">How redemption works</h2>
+              </div>
+              <VoucherInfoDropdown title="How to use" items={howToUseItems} />
+              <VoucherInfoDropdown title="Terms & Conditions" items={termsItems} />
+            </div>
+          ) : null}
 
           <div className="rounded-[8px] border border-emerald-100 bg-white p-5">
             <div className="flex items-center gap-2">

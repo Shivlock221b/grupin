@@ -16,8 +16,8 @@ export function SiteShell({ children }: SiteShellProps) {
             <Link href="/faqs" className="hover:text-slate-950">FAQs</Link>
             <Link href="/contact-us" className="hover:text-slate-950">Contact us</Link>
             <Link href="/feedback" className="hover:text-slate-950">Feedback</Link>
-            {/* <Link href="/terms-and-conditions" className="hover:text-slate-950">Terms & Conditions</Link>
-            <Link href="/privacy-policy" className="hover:text-slate-950">Privacy Policy</Link> */}
+            <Link href="/terms-and-conditions" className="hover:text-slate-950">Terms & Conditions</Link>
+            <Link href="/privacy-policy" className="hover:text-slate-950">Privacy Policy</Link>
           </nav>
         </div>
       </footer>

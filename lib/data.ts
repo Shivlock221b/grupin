@@ -141,6 +141,8 @@ function mapPrivateUnlockDealConfig(row: Record<string, unknown>, deal: GroupDea
     voucherValue: row.voucher_value === null || row.voucher_value === undefined ? undefined : Number(row.voucher_value),
     flatDiscountAmount: row.flat_discount_amount === null || row.flat_discount_amount === undefined ? undefined : Number(row.flat_discount_amount),
     finalPayableAfterUnlock: row.final_payable_after_unlock === null || row.final_payable_after_unlock === undefined ? null : Number(row.final_payable_after_unlock),
+    howToUse: (row.how_to_use as string | null | undefined) ?? null,
+    termsAndConditions: (row.terms_and_conditions as string | null | undefined) ?? null,
     couponStockTotal: Number(row.coupon_stock_total ?? 12),
     couponStockClaimed: Number(row.coupon_stock_claimed ?? 0),
     deal,
@@ -366,7 +368,7 @@ export async function getPrivateUnlockDealConfigByDealId(dealId: string): Promis
 
   const { data, error } = await supabase
     .from("private_unlock_deal_configs")
-    .select("id, deal_id, enabled, headline, brand_name, brand_logo, card_image, banner_image, category, short_description, threshold, discount_percent, token_amount, coupon_prefix, sort_order, featured, source, voucher_url, scraped_discount_percent, voucher_value, flat_discount_amount, final_payable_after_unlock, coupon_stock_total, coupon_stock_claimed, created_at, deals!inner(status)")
+    .select("id, deal_id, enabled, headline, brand_name, brand_logo, card_image, banner_image, category, short_description, threshold, discount_percent, token_amount, coupon_prefix, sort_order, featured, source, voucher_url, scraped_discount_percent, voucher_value, flat_discount_amount, final_payable_after_unlock, how_to_use, terms_and_conditions, coupon_stock_total, coupon_stock_claimed, created_at, deals!inner(status)")
     .eq("deal_id", dealId)
     .eq("enabled", true)
     .eq("deals.status", "live")
@@ -401,7 +403,7 @@ export async function listPrivateUnlockDealConfigs(): Promise<PrivateUnlockDealC
 
   const { data, error } = await supabase
     .from("private_unlock_deal_configs")
-    .select("id, deal_id, enabled, headline, brand_name, brand_logo, card_image, banner_image, category, short_description, threshold, discount_percent, token_amount, coupon_prefix, sort_order, featured, source, voucher_url, scraped_discount_percent, voucher_value, flat_discount_amount, final_payable_after_unlock, coupon_stock_total, coupon_stock_claimed, created_at, deals!inner(status)")
+    .select("id, deal_id, enabled, headline, brand_name, brand_logo, card_image, banner_image, category, short_description, threshold, discount_percent, token_amount, coupon_prefix, sort_order, featured, source, voucher_url, scraped_discount_percent, voucher_value, flat_discount_amount, final_payable_after_unlock, how_to_use, terms_and_conditions, coupon_stock_total, coupon_stock_claimed, created_at, deals!inner(status)")
     .eq("enabled", true)
     .eq("deals.status", "live")
     .order("sort_order", { ascending: true })
