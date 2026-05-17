@@ -1,6 +1,6 @@
 "use server";
 
-import { revalidatePath } from "next/cache";
+import { revalidatePath, revalidateTag } from "next/cache";
 import { redirect } from "next/navigation";
 import { z } from "zod";
 import { requireAdmin } from "@/lib/auth";
@@ -66,6 +66,12 @@ export type ActionState = {
 const adminLoginSchema = z.object({
   keyword: z.string().min(1),
 });
+
+function revalidateUnlockMarketplace() {
+  revalidateTag("private-unlock-deal-configs", { expire: 0 });
+  revalidatePath("/");
+  revalidatePath("/unlock-deals");
+}
 
 const brandSchema = z.object({
   name: z.string().min(2),
@@ -194,7 +200,7 @@ export async function submitDealInterest(_state: ActionState, formData: FormData
       );
     }
 
-    revalidatePath("/");
+    revalidateUnlockMarketplace();
     revalidatePath("/deals");
     revalidatePath(`/deals/${result.deal.slug}`);
     revalidatePath(`/admin/deals/${result.deal.id}`);
@@ -367,7 +373,7 @@ export async function createDealAction(_state: ActionState, formData: FormData):
       throw configError;
     }
 
-    revalidatePath("/");
+    revalidateUnlockMarketplace();
     revalidatePath("/private-unlock");
     revalidatePath("/admin/deals");
     redirect(`/admin/deals/${deal.id}?created=1`);
@@ -426,7 +432,7 @@ export async function updateDealAction(
       throw configError;
     }
 
-    revalidatePath("/");
+    revalidateUnlockMarketplace();
     revalidatePath("/private-unlock");
     revalidatePath(`/private-unlock/${dealId}`);
     revalidatePath(`/admin/deals/${dealId}`);
@@ -609,6 +615,7 @@ export async function updateDealControlAction(_state: ActionState, formData: For
   revalidatePath("/admin/deals");
   revalidatePath(`/admin/deals/${parsed.data.dealId}`);
   revalidatePath(`/deal/${parsed.data.dealId}`);
+  revalidateUnlockMarketplace();
   return { success: true, message: "Deal controls updated." };
 }
 
@@ -725,7 +732,7 @@ export async function deletePrivateUnlockDealAction(formData: FormData) {
   await supabase.from("private_unlock_deal_configs").delete().eq("deal_id", dealId);
   await supabase.from("deals").delete().eq("id", dealId);
 
-  revalidatePath("/");
+  revalidateUnlockMarketplace();
   revalidatePath("/private-unlock");
   revalidatePath("/admin/deals");
   revalidatePath("/admin/dashboard");
@@ -967,8 +974,7 @@ export async function updatePlatformCouponInventoryAction(_state: ActionState, f
     return { success: false, message: error.message };
   }
 
-  revalidatePath("/");
-  revalidatePath("/unlock-deals");
+  revalidateUnlockMarketplace();
   revalidatePath("/admin/dashboard");
   return {
     success: true,

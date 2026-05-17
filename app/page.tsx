@@ -1,5 +1,10 @@
-import { redirect } from "next/navigation";
+import { PrivateUnlockMarketplace } from "@/components/private-unlock-marketplace";
+import { listCachedPrivateUnlockDealConfigs } from "@/lib/data";
 
-export default function HomePage() {
-  redirect("/unlock-deals");
+export const dynamic = "force-dynamic";
+
+export default async function HomePage() {
+  const configs = await listCachedPrivateUnlockDealConfigs();
+
+  return <PrivateUnlockMarketplace configs={configs} />;
 }

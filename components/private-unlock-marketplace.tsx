@@ -80,9 +80,9 @@ export function PrivateUnlockMarketplace({ configs }: PrivateUnlockMarketplacePr
         <div className="relative min-h-[420px] overflow-hidden rounded-[8px] bg-slate-950 text-white shadow-[0_24px_80px_rgba(8,47,73,0.18)] sm:min-h-[470px]">
           {featured ? (
             <>
-              <img src={featured.bannerImage} alt="" className="absolute inset-0 h-full w-full object-cover opacity-30 blur-2xl scale-110" />
+              <img src={featured.bannerImage} alt="" fetchPriority="high" className="absolute inset-0 h-full w-full object-cover opacity-30 blur-2xl scale-110" />
               <div className="absolute inset-4 rounded-[8px] bg-white/8 ring-1 ring-white/10 sm:inset-8" />
-              <img src={featured.bannerImage} alt="" className="absolute inset-0 h-full w-full object-contain p-8 sm:p-12" />
+              <img src={featured.bannerImage} alt="" fetchPriority="high" className="absolute inset-0 h-full w-full object-contain p-8 sm:p-12" />
             </>
           ) : null}
           <div className="absolute inset-0 bg-gradient-to-r from-slate-950/72 via-slate-950/28 to-transparent" />
@@ -224,7 +224,7 @@ export function PrivateUnlockMarketplace({ configs }: PrivateUnlockMarketplacePr
             const cardContent = (
               <>
                 <div className="relative aspect-[4/3] overflow-hidden bg-slate-100">
-                  <img src={config.cardImage} alt="" className="h-full w-full object-cover transition duration-300 group-hover:scale-105" />
+                  <img src={config.cardImage} alt="" loading="lazy" decoding="async" className="h-full w-full object-cover transition duration-300 group-hover:scale-105" />
                   <div className="absolute left-3 top-3 rounded-full bg-white px-3 py-1 text-xs font-bold text-slate-950 shadow-sm">
                     {config.category}
                   </div>

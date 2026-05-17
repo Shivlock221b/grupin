@@ -1,4 +1,5 @@
 import { cache } from "react";
+import { unstable_cache } from "next/cache";
 import { createClient } from "@/supabase/server";
 import { createAdminClient } from "@/lib/supabase-admin";
 import { isTestPhoneCredential, normalizePhone, phoneLookupVariants } from "@/lib/otp";
@@ -403,7 +404,7 @@ export async function listPrivateUnlockDealConfigs(): Promise<PrivateUnlockDealC
 
   const { data, error } = await supabase
     .from("private_unlock_deal_configs")
-    .select("id, deal_id, enabled, headline, brand_name, brand_logo, card_image, banner_image, category, short_description, threshold, discount_percent, token_amount, coupon_prefix, sort_order, featured, source, voucher_url, scraped_discount_percent, voucher_value, flat_discount_amount, final_payable_after_unlock, how_to_use, terms_and_conditions, coupon_stock_total, coupon_stock_claimed, created_at, deals!inner(status)")
+    .select("id, deal_id, enabled, headline, brand_name, brand_logo, card_image, banner_image, category, short_description, threshold, discount_percent, token_amount, coupon_prefix, sort_order, featured, source, voucher_url, scraped_discount_percent, voucher_value, flat_discount_amount, final_payable_after_unlock, coupon_stock_total, coupon_stock_claimed, created_at, deals!inner(id, title, original_price, tier_1_threshold, tier_1_price, tier_2_threshold, tier_2_price, tier_3_threshold, tier_3_price, current_count, expires_at, created_at, status)")
     .eq("enabled", true)
     .eq("deals.status", "live")
     .order("sort_order", { ascending: true })
@@ -414,23 +415,27 @@ export async function listPrivateUnlockDealConfigs(): Promise<PrivateUnlockDealC
   }
 
   const platformInventory = await getPlatformCouponInventory();
-  const configs = await Promise.all(
-    (data ?? []).map(async (row) => {
-      const deal = await getGroupDealById(String(row.deal_id));
-      if (!deal) {
-        return null;
-      }
+  const configs = (data ?? []).map((row) => {
+    const dealRow = relationOne(row.deals);
+    if (!dealRow) {
+      return null;
+    }
 
-      const config = mapPrivateUnlockDealConfig(row, deal);
-      return {
-        ...config,
-        isOutOfStock: platformInventory.outOfStock || config.couponStockClaimed >= config.couponStockTotal,
-      };
-    })
-  );
+    const config = mapPrivateUnlockDealConfig(row, mapGroupDeal(dealRow));
+    return {
+      ...config,
+      isOutOfStock: platformInventory.outOfStock || config.couponStockClaimed >= config.couponStockTotal,
+    };
+  });
 
   return configs.filter(Boolean) as PrivateUnlockDealConfig[];
 }
+
+export const listCachedPrivateUnlockDealConfigs = unstable_cache(
+  async () => listPrivateUnlockDealConfigs(),
+  ["private-unlock-deal-configs-v2"],
+  { revalidate: 60, tags: ["private-unlock-deal-configs"] }
+);
 
 function placeholderEmailForPhone(phone: string) {
   const digits = normalizePhone(phone).replace(/\D/g, "").slice(-10) || "unknown";
