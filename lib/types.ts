@@ -105,6 +105,183 @@ export type BrandUser = {
   createdAt?: string;
 };
 
+export type ProductVariant = {
+  title: string;
+  variant_name?: string | null;
+  variant_type?: string | null;
+  child_id?: string | null;
+  sku: string;
+  price: number | null;
+  sale_price?: number | null;
+  compare_at_price?: number | null;
+  available: boolean;
+  requires_shipping: boolean;
+  grams?: number | null;
+  pack_size?: string | null;
+  shade_image?: string | null;
+  image_url?: string | null;
+  nykaa_slug?: string | null;
+  quantity?: number | null;
+  expiry?: string | null;
+  source_variant_ids?: Array<string | number>;
+  source_product_ids?: Array<string | number>;
+  source_handles?: string[];
+};
+
+export type BrandProduct = {
+  id: string;
+  brandId: string;
+  brand?: Brand | null;
+  title: string;
+  slug: string;
+  vendor?: string | null;
+  primaryImage?: string | null;
+  imageUrls: string[];
+  variants: ProductVariant[];
+  tags: string[];
+  productTypes: string[];
+  priceMin?: number | null;
+  priceMax?: number | null;
+  sourceProductIds: string[];
+  sourceHandles: string[];
+  sourceFiles: string[];
+  productUrl?: string | null;
+  sourceProductName?: string | null;
+  sourceProductTitle?: string | null;
+  sourceSlug?: string | null;
+  sourceUrl?: string | null;
+  mrp?: number | null;
+  salePrice?: number | null;
+  sourceDiscountPercent?: number | null;
+  rating?: number | null;
+  ratingCount?: number | null;
+  inStock?: boolean | null;
+  variantCount?: number | null;
+  variantType?: string | null;
+  primaryCategories?: Record<string, unknown> | null;
+  description?: string | null;
+  howToUse?: string | null;
+  ingredients?: string | null;
+  reviewCount?: number | null;
+  detailImageUrl?: string | null;
+  publishedAt?: string | null;
+  createdAt?: string;
+  updatedAt?: string;
+};
+
+export type ProductTeamUnlock = {
+  id: string;
+  productId: string;
+  brandId: string;
+  ownerProfileId?: string | null;
+  shareCode: string;
+  threshold: number;
+  discountPercent: number;
+  selectedVariant?: ProductVariant | null;
+  currentCount: number;
+  status: "active" | "unlocked" | "expired" | "completed" | "cancelled";
+  expiresAt: string;
+  createdAt?: string;
+};
+
+export type ProductTeamUnlockMember = {
+  id: string;
+  unlockId: string;
+  productId: string;
+  brandId: string;
+  profileId?: string | null;
+  selectedVariant?: ProductVariant | null;
+  phone: string;
+  role: "owner" | "member";
+  createdAt: string;
+};
+
+export type ProductTeamOrder = {
+  id: string;
+  unlockId: string;
+  productId: string;
+  brandId: string;
+  profileId?: string | null;
+  selectedVariant?: ProductVariant | null;
+  buyerName: string;
+  buyerEmail?: string | null;
+  buyerPhone: string;
+  deliveryAddress: Record<string, unknown>;
+  amountPaid: number;
+  razorpayPaymentId?: string | null;
+  razorpayOrderId?: string | null;
+  razorpaySignature?: string | null;
+  status: "hold" | "confirmed" | "refund_pending" | "refunded" | "cancelled";
+  createdAt?: string;
+  updatedAt?: string;
+};
+
+export type ProductTeamOrderUpdate = {
+  id: string;
+  orderId: string;
+  status: "hold" | "confirmed" | "processing" | "packed" | "shipped" | "out_for_delivery" | "delivered" | "refund_pending" | "refunded" | "cancelled";
+  remark?: string | null;
+  createdBy?: string | null;
+  createdAt: string;
+};
+
+export type ProductTeamCheckoutProgress = {
+  id: string;
+  profileId?: string | null;
+  buyerName: string;
+  buyerPhone: string;
+  amountPaid: number;
+  status: ProductTeamOrder["status"];
+  createdAt?: string;
+};
+
+export type AccountProductUnlockRoom = ProductTeamUnlock & {
+  productTitle: string;
+  productSlug: string;
+  brandName: string;
+  brandSlug: string;
+  memberRole: ProductTeamUnlockMember["role"];
+  joinedAt: string;
+};
+
+export type AccountProductOrder = ProductTeamOrder & {
+  productTitle: string;
+  productSlug: string;
+  brandName: string;
+  brandSlug: string;
+  shareCode: string;
+  roomStatus?: ProductTeamUnlock["status"] | null;
+  roomCurrentCount?: number | null;
+  roomThreshold?: number | null;
+  trackingUpdates?: ProductTeamOrderUpdate[];
+};
+
+export type AdminBrandProduct = BrandProduct & {
+  roomsCount: number;
+  membersCount: number;
+  ordersCount: number;
+  ordersRevenue: number;
+};
+
+export type AdminProductTeamUnlock = ProductTeamUnlock & {
+  productTitle?: string | null;
+  productSlug?: string | null;
+  brandName?: string | null;
+  members: ProductTeamUnlockMember[];
+  ordersCount: number;
+  ordersRevenue: number;
+};
+
+export type AdminProductTeamOrder = ProductTeamOrder & {
+  productTitle?: string | null;
+  brandName?: string | null;
+  shareCode?: string | null;
+  profileName?: string | null;
+  profilePhone?: string | null;
+  profileEmail?: string | null;
+  trackingUpdates?: ProductTeamOrderUpdate[];
+};
+
 export type DashboardDeal = GroupDeal & {
   slug?: string;
   merchant?: string;

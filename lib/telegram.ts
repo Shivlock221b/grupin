@@ -1,12 +1,13 @@
 type TelegramMessageInput = {
   text: string;
+  chatId?: string;
 };
 
-export async function sendTelegramMessage({ text }: TelegramMessageInput) {
+export async function sendTelegramMessage({ text, chatId }: TelegramMessageInput) {
   const token = process.env.TELEGRAM_BOT_TOKEN;
-  const chatId = process.env.TELEGRAM_ADMIN_CHAT_ID;
+  const targetChatId = chatId ?? process.env.TELEGRAM_ADMIN_CHAT_ID;
 
-  if (!token || !chatId) {
+  if (!token || !targetChatId) {
     return { delivered: false, reason: "Telegram env vars are not configured." };
   }
 
@@ -14,7 +15,7 @@ export async function sendTelegramMessage({ text }: TelegramMessageInput) {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
-      chat_id: chatId,
+      chat_id: targetChatId,
       text,
       parse_mode: "HTML",
       disable_web_page_preview: true,
@@ -37,4 +38,20 @@ export function escapeTelegramHtml(value: unknown) {
     .replaceAll("&", "&amp;")
     .replaceAll("<", "&lt;")
     .replaceAll(">", "&gt;");
+}
+
+export function phoneLast4(phone: unknown) {
+  const digits = String(phone ?? "").replace(/\D/g, "");
+  return digits ? digits.slice(-4) : "";
+}
+
+export function adminPhoneLabel(phone: unknown, fallback = "Unknown phone") {
+  const text = String(phone ?? "").trim();
+  const last4 = phoneLast4(text);
+
+  if (!text) {
+    return fallback;
+  }
+
+  return `${text}${last4 ? ` (last 4: ${last4})` : ""}`;
 }

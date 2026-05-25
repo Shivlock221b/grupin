@@ -1,3 +1,6 @@
+import crypto from "crypto";
+import { createAdminClient } from "@/lib/supabase-admin";
+
 export type OtpPurpose = "reservation" | "coupon_unlock";
 
 export function normalizePhone(phone: string) {
@@ -33,6 +36,10 @@ export function createOtpCode() {
   return String(Math.floor(100000 + Math.random() * 900000));
 }
 
+function hashOtpCode(code: string) {
+  return crypto.createHash("sha256").update(code).digest("hex");
+}
+
 export function isTestOtpCredential(phone: string, code: string) {
   return isTestPhoneCredential(phone) && code === "654321";
 }
@@ -44,6 +51,16 @@ export function isTestPhoneCredential(phone: string) {
 
 function hasTwilioVerifyConfig() {
   return Boolean(process.env.TWILIO_ACCOUNT_SID && process.env.TWILIO_AUTH_TOKEN && process.env.TWILIO_VERIFY_SERVICE_SID);
+}
+
+function useLocalOtpFallback() {
+  return !hasTwilioVerifyConfig() || (process.env.OTP_DEMO_MODE === "true" && process.env.NODE_ENV !== "production");
+}
+
+function safeDealId(dealId?: string | null) {
+  return typeof dealId === "string" && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(dealId)
+    ? dealId
+    : null;
 }
 
 export async function sendOtpSms(phone: string, code: string) {
@@ -79,24 +96,55 @@ export async function sendOtpSms(phone: string, code: string) {
   return { delivered: true, provider: "twilio_verify_sms", sid: payload.sid as string | undefined };
 }
 
-export async function createOtp({ phone }: { dealId?: string | null; phone: string; purpose: OtpPurpose }) {
+export async function createOtp({ dealId = null, phone, purpose }: { dealId?: string | null; phone: string; purpose: OtpPurpose }) {
   const normalizedPhone = normalizePhone(phone);
-  const code = createOtpCode();
   const expiresAt = new Date(Date.now() + 5 * 60 * 1000).toISOString();
 
   if (!normalizedPhone || normalizedPhone.length < 8) {
     throw new Error("Enter a valid phone number.");
   }
 
-  await sendOtpSms(normalizedPhone, code);
+  if (useLocalOtpFallback()) {
+    if (process.env.NODE_ENV === "production") {
+      throw new Error("OTP provider is not configured.");
+    }
+
+    const supabase = createAdminClient();
+    const code = createOtpCode();
+
+    if (!supabase) {
+      throw new Error("OTP storage is not configured.");
+    }
+
+    const { error } = await supabase.from("otp_verifications").insert({
+      deal_id: safeDealId(dealId),
+      phone: normalizedPhone,
+      purpose,
+      otp_code: hashOtpCode(code),
+      expires_at: expiresAt,
+    });
+
+    if (error) {
+      throw error;
+    }
+
+    console.log(`GruPin demo OTP for ${normalizedPhone}: ${code}`);
+    return {
+      code,
+      expiresAt,
+      demoMode: true,
+    };
+  }
+
+  await sendOtpSms(normalizedPhone, "");
   return {
-    code,
+    code: "",
     expiresAt,
-    demoMode: !hasTwilioVerifyConfig() || process.env.OTP_DEMO_MODE === "true",
+    demoMode: false,
   };
 }
 
-export async function verifyOtp({ phone, code }: { dealId?: string | null; phone: string; purpose: OtpPurpose; code: string }) {
+export async function verifyOtp({ dealId = null, phone, purpose, code }: { dealId?: string | null; phone: string; purpose: OtpPurpose; code: string }) {
   const normalizedPhone = normalizePhone(phone);
   if (!normalizedPhone || normalizedPhone.length < 8 || !/^\d{6}$/.test(code)) {
     return false;
@@ -106,8 +154,48 @@ export async function verifyOtp({ phone, code }: { dealId?: string | null; phone
     return true;
   }
 
-  if (!hasTwilioVerifyConfig()) {
-    return code === "123456";
+  if (useLocalOtpFallback()) {
+    if (process.env.NODE_ENV === "production") {
+      return false;
+    }
+
+    const supabase = createAdminClient();
+
+    if (!supabase) {
+      return false;
+    }
+
+    let query = supabase
+      .from("otp_verifications")
+      .select("id, otp_code, attempts, expires_at, verified_at")
+      .in("phone", phoneLookupVariants(phone))
+      .eq("purpose", purpose)
+      .is("verified_at", null)
+      .gt("expires_at", new Date().toISOString())
+      .order("created_at", { ascending: false })
+      .limit(1);
+
+    const normalizedDealId = safeDealId(dealId);
+    query = normalizedDealId ? query.eq("deal_id", normalizedDealId) : query.is("deal_id", null);
+
+    const { data, error } = await query.maybeSingle();
+
+    if (error || !data || Number(data.attempts ?? 0) >= 5) {
+      return false;
+    }
+
+    const attempts = Number(data.attempts ?? 0) + 1;
+    const matches = String(data.otp_code) === hashOtpCode(code);
+
+    await supabase
+      .from("otp_verifications")
+      .update({
+        attempts,
+        ...(matches ? { verified_at: new Date().toISOString() } : {}),
+      })
+      .eq("id", data.id);
+
+    return matches;
   }
 
   const accountSid = process.env.TWILIO_ACCOUNT_SID;

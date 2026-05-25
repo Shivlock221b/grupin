@@ -10,14 +10,20 @@ import {
   DealInterest,
   DealStatus,
   Brand,
+  BrandProduct,
   BrandUser,
   DashboardDeal,
   DashboardReservation,
   DealCoupon,
+  AdminBrandProduct,
   AdminCouponClaim,
   AdminPrivateUnlockDeal,
   AdminPrivateUnlockMember,
   AdminPrivateUnlockRoom,
+  AdminProductTeamOrder,
+  AdminProductTeamUnlock,
+  AccountProductOrder,
+  AccountProductUnlockRoom,
   AccountProfile,
   AccountUnlockRoom,
   AccountUnlockedCoupon,
@@ -27,6 +33,11 @@ import {
   PrivateUnlockDealConfig,
   PrivateUnlock,
   PrivateUnlockMember,
+  ProductTeamUnlock,
+  ProductTeamUnlockMember,
+  ProductTeamOrder,
+  ProductTeamCheckoutProgress,
+  ProductTeamOrderUpdate,
   Reservation,
   UserDealInterest,
 } from "@/lib/types";
@@ -258,6 +269,123 @@ function mapBrand(row: Record<string, unknown>): Brand {
   };
 }
 
+function mapBrandProduct(row: Record<string, unknown>): BrandProduct {
+  const brandRow = relationOne(row.brands);
+  const sourceHandles = Array.isArray(row.source_handles) ? (row.source_handles as string[]) : [];
+  const brand = brandRow ? mapBrand(brandRow) : null;
+  const websiteUrl = brand?.websiteUrl?.replace(/\/$/, "");
+  const sourceUrl = (row.source_url as string | null | undefined) ?? null;
+  const productUrl = sourceUrl ?? (websiteUrl && sourceHandles[0] ? `${websiteUrl}/products/${sourceHandles[0]}` : null);
+
+  return {
+    id: String(row.id),
+    brandId: String(row.brand_id),
+    brand,
+    title: String(row.title),
+    slug: String(row.slug),
+    vendor: (row.vendor as string | null | undefined) ?? null,
+    primaryImage: (row.primary_image as string | null | undefined) ?? null,
+    imageUrls: Array.isArray(row.image_urls) ? (row.image_urls as string[]) : [],
+    variants: Array.isArray(row.variants) ? (row.variants as BrandProduct["variants"]) : [],
+    tags: Array.isArray(row.tags) ? (row.tags as string[]) : [],
+    productTypes: Array.isArray(row.product_types) ? (row.product_types as string[]) : [],
+    priceMin: row.price_min === null || row.price_min === undefined ? null : Number(row.price_min),
+    priceMax: row.price_max === null || row.price_max === undefined ? null : Number(row.price_max),
+    sourceProductIds: Array.isArray(row.source_product_ids) ? (row.source_product_ids as string[]) : [],
+    sourceHandles,
+    sourceFiles: Array.isArray(row.source_files) ? (row.source_files as string[]) : [],
+    productUrl,
+    sourceProductName: (row.source_product_name as string | null | undefined) ?? null,
+    sourceProductTitle: (row.source_product_title as string | null | undefined) ?? null,
+    sourceSlug: (row.source_slug as string | null | undefined) ?? null,
+    sourceUrl,
+    mrp: row.mrp === null || row.mrp === undefined ? null : Number(row.mrp),
+    salePrice: row.sale_price === null || row.sale_price === undefined ? null : Number(row.sale_price),
+    sourceDiscountPercent: row.source_discount_percent === null || row.source_discount_percent === undefined ? null : Number(row.source_discount_percent),
+    rating: row.rating === null || row.rating === undefined ? null : Number(row.rating),
+    ratingCount: row.rating_count === null || row.rating_count === undefined ? null : Number(row.rating_count),
+    inStock: row.in_stock === null || row.in_stock === undefined ? null : Boolean(row.in_stock),
+    variantCount: row.variant_count === null || row.variant_count === undefined ? null : Number(row.variant_count),
+    variantType: (row.variant_type as string | null | undefined) ?? null,
+    primaryCategories: row.primary_categories && typeof row.primary_categories === "object" ? row.primary_categories as Record<string, unknown> : null,
+    description: (row.description as string | null | undefined) ?? null,
+    howToUse: (row.how_to_use as string | null | undefined) ?? null,
+    ingredients: (row.ingredients as string | null | undefined) ?? null,
+    reviewCount: row.review_count === null || row.review_count === undefined ? null : Number(row.review_count),
+    detailImageUrl: (row.detail_image_url as string | null | undefined) ?? null,
+    publishedAt: (row.published_at as string | null | undefined) ?? null,
+    createdAt: row.created_at ? String(row.created_at) : undefined,
+    updatedAt: row.updated_at ? String(row.updated_at) : undefined,
+  };
+}
+
+const PRODUCT_COLUMNS = "id, brand_id, title, slug, vendor, primary_image, image_urls, variants, tags, product_types, price_min, price_max, source_product_ids, source_handles, source_files, source_product_name, source_product_title, source_slug, source_url, mrp, sale_price, source_discount_percent, rating, rating_count, in_stock, variant_count, variant_type, primary_categories, description, how_to_use, ingredients, review_count, detail_image_url, published_at, created_at, updated_at";
+const CATALOG_PRODUCT_COLUMNS = "id, brand_id, title, slug, vendor, primary_image, tags, product_types, price_min, price_max, source_handles, source_url, mrp, sale_price, source_discount_percent, rating, rating_count, in_stock, variant_count, variant_type, created_at, updated_at";
+
+function mapProductTeamUnlock(row: Record<string, unknown>): ProductTeamUnlock {
+  return {
+    id: String(row.id),
+    productId: String(row.product_id),
+    brandId: String(row.brand_id),
+    ownerProfileId: (row.owner_profile_id as string | null | undefined) ?? null,
+    shareCode: String(row.share_code),
+    threshold: Number(row.threshold ?? 3),
+    discountPercent: Number(row.discount_percent ?? 25),
+    selectedVariant: row.selected_variant && typeof row.selected_variant === "object" ? row.selected_variant as ProductTeamUnlock["selectedVariant"] : null,
+    currentCount: Number(row.current_count ?? 0),
+    status: row.status as ProductTeamUnlock["status"],
+    expiresAt: String(row.expires_at),
+    createdAt: row.created_at ? String(row.created_at) : undefined,
+  };
+}
+
+function mapProductTeamUnlockMember(row: Record<string, unknown>): ProductTeamUnlockMember {
+  return {
+    id: String(row.id),
+    unlockId: String(row.unlock_id),
+    productId: String(row.product_id),
+    brandId: String(row.brand_id),
+    profileId: (row.profile_id as string | null | undefined) ?? null,
+    selectedVariant: row.selected_variant && typeof row.selected_variant === "object" ? row.selected_variant as ProductTeamUnlockMember["selectedVariant"] : null,
+    phone: String(row.phone ?? ""),
+    role: row.role as ProductTeamUnlockMember["role"],
+    createdAt: String(row.created_at),
+  };
+}
+
+function mapProductTeamOrder(row: Record<string, unknown>): ProductTeamOrder {
+  return {
+    id: String(row.id),
+    unlockId: String(row.unlock_id),
+    productId: String(row.product_id),
+    brandId: String(row.brand_id),
+    profileId: (row.profile_id as string | null | undefined) ?? null,
+    selectedVariant: row.selected_variant && typeof row.selected_variant === "object" ? row.selected_variant as ProductTeamOrder["selectedVariant"] : null,
+    buyerName: String(row.buyer_name ?? ""),
+    buyerEmail: (row.buyer_email as string | null | undefined) ?? null,
+    buyerPhone: String(row.buyer_phone ?? ""),
+    deliveryAddress: row.delivery_address && typeof row.delivery_address === "object" ? row.delivery_address as Record<string, unknown> : {},
+    amountPaid: Number(row.amount_paid ?? 0),
+    razorpayPaymentId: (row.razorpay_payment_id as string | null | undefined) ?? null,
+    razorpayOrderId: (row.razorpay_order_id as string | null | undefined) ?? null,
+    razorpaySignature: (row.razorpay_signature as string | null | undefined) ?? null,
+    status: row.status as ProductTeamOrder["status"],
+    createdAt: row.created_at ? String(row.created_at) : undefined,
+    updatedAt: row.updated_at ? String(row.updated_at) : undefined,
+  };
+}
+
+function mapProductTeamOrderUpdate(row: Record<string, unknown>): ProductTeamOrderUpdate {
+  return {
+    id: String(row.id),
+    orderId: String(row.order_id),
+    status: row.status as ProductTeamOrderUpdate["status"],
+    remark: (row.remark as string | null | undefined) ?? null,
+    createdBy: (row.created_by as string | null | undefined) ?? null,
+    createdAt: String(row.created_at),
+  };
+}
+
 function mapDashboardDeal(row: Record<string, unknown>): DashboardDeal {
   const brandRow = Array.isArray(row.brands) ? row.brands[0] : row.brands;
 
@@ -436,6 +564,319 @@ export const listCachedPrivateUnlockDealConfigs = unstable_cache(
   ["private-unlock-deal-configs-v2"],
   { revalidate: 60, tags: ["private-unlock-deal-configs"] }
 );
+
+export async function listBrandProducts(brandSlug?: string): Promise<BrandProduct[]> {
+  return listBrandProductsWithColumns(PRODUCT_COLUMNS, brandSlug);
+}
+
+async function listBrandProductsWithColumns(columns: string, brandSlug?: string): Promise<BrandProduct[]> {
+  const supabase = createAdminClient();
+
+  if (!supabase) {
+    return [];
+  }
+
+  const brandSelect = brandSlug ? "brands!inner(id, name, slug, logo_url, website_url, created_at)" : "brands(id, name, slug, logo_url, website_url, created_at)";
+  let query = supabase
+    .from("products")
+    .select(`${columns}, ${brandSelect}`)
+    .order("title", { ascending: true });
+
+  if (brandSlug) {
+    query = query.eq("brands.slug", brandSlug);
+  }
+
+  const { data, error } = await query;
+
+  if (error) {
+    throw error;
+  }
+
+  return ((data ?? []) as unknown as Record<string, unknown>[]).map(mapBrandProduct);
+}
+
+export async function listBrandCatalogProducts(brandSlug?: string): Promise<BrandProduct[]> {
+  return listBrandProductsWithColumns(CATALOG_PRODUCT_COLUMNS, brandSlug);
+}
+
+export const listCachedBrandProducts = unstable_cache(
+  async () => listBrandProducts(),
+  ["brand-products-v1"],
+  { revalidate: 60, tags: ["brand-products"] }
+);
+
+export const listCachedBrandProductsByBrandSlug = unstable_cache(
+  async (brandSlug: string) => listBrandProducts(brandSlug),
+  ["brand-products-by-brand-v1"],
+  { revalidate: 60, tags: ["brand-products"] }
+);
+
+export const listCachedBrandCatalogProductsByBrandSlug = unstable_cache(
+  async (brandSlug: string) => listBrandCatalogProducts(brandSlug),
+  ["brand-catalog-products-by-brand-v1"],
+  { revalidate: 300, tags: ["brand-products"] }
+);
+
+export async function listCatalogBrandSlugs(): Promise<string[]> {
+  const supabase = createAdminClient();
+
+  if (!supabase) {
+    return [];
+  }
+
+  const { data, error } = await supabase
+    .from("brands")
+    .select("slug")
+    .order("slug", { ascending: true });
+
+  if (error) {
+    throw error;
+  }
+
+  return (data ?? []).map((row) => String(row.slug)).filter(Boolean);
+}
+
+export async function listProductRouteParams(): Promise<Array<{ brandSlug: string; productSlug: string }>> {
+  const supabase = createAdminClient();
+
+  if (!supabase) {
+    return [];
+  }
+
+  const { data, error } = await supabase
+    .from("products")
+    .select("slug, brands!inner(slug)")
+    .order("slug", { ascending: true });
+
+  if (error) {
+    throw error;
+  }
+
+  return ((data ?? []) as unknown as Record<string, unknown>[])
+    .map((row) => {
+      const brand = relationOne(row.brands);
+      return {
+        brandSlug: brand ? String(brand.slug ?? "") : "",
+        productSlug: String(row.slug ?? ""),
+      };
+    })
+    .filter((row) => row.brandSlug && row.productSlug);
+}
+
+export async function getBrandProductBySlugs(brandSlug: string, productSlug: string): Promise<BrandProduct | null> {
+  const supabase = createAdminClient();
+
+  if (!supabase) {
+    return null;
+  }
+
+  const { data, error } = await supabase
+    .from("products")
+    .select(`${PRODUCT_COLUMNS}, brands!inner(id, name, slug, logo_url, website_url, created_at)`)
+    .eq("slug", productSlug)
+    .eq("brands.slug", brandSlug)
+    .maybeSingle();
+
+  if (error) {
+    throw error;
+  }
+
+  return data ? mapBrandProduct(data) : null;
+}
+
+export const getCachedBrandProductBySlugs = unstable_cache(
+  async (brandSlug: string, productSlug: string) => getBrandProductBySlugs(brandSlug, productSlug),
+  ["brand-product-by-slugs-v1"],
+  { revalidate: 300, tags: ["brand-products"] }
+);
+
+export async function getBrandProductById(productId: string): Promise<BrandProduct | null> {
+  const supabase = createAdminClient();
+
+  if (!supabase) {
+    return null;
+  }
+
+  const { data, error } = await supabase
+    .from("products")
+    .select(`${PRODUCT_COLUMNS}, brands!inner(id, name, slug, logo_url, website_url, created_at)`)
+    .eq("id", productId)
+    .maybeSingle();
+
+  if (error) {
+    throw error;
+  }
+
+  return data ? mapBrandProduct(data) : null;
+}
+
+export const getCachedBrandProductById = unstable_cache(
+  async (productId: string) => getBrandProductById(productId),
+  ["brand-product-by-id-v1"],
+  { revalidate: 300, tags: ["brand-products"] }
+);
+
+export async function getProductTeamUnlockByCode(code: string): Promise<ProductTeamUnlock | null> {
+  const supabase = createAdminClient();
+
+  if (!supabase || !code.trim()) {
+    return null;
+  }
+
+  const { data, error } = await supabase
+    .from("product_team_unlocks")
+    .select("id, product_id, brand_id, owner_profile_id, share_code, threshold, discount_percent, selected_variant, current_count, status, expires_at, created_at")
+    .eq("share_code", code.trim().toUpperCase())
+    .maybeSingle();
+
+  if (error) {
+    throw error;
+  }
+
+  return data ? mapProductTeamUnlock(data) : null;
+}
+
+export async function listProductTeamUnlockMembers(unlockId: string): Promise<ProductTeamUnlockMember[]> {
+  const supabase = createAdminClient();
+
+  if (!supabase) {
+    return [];
+  }
+
+  const { data, error } = await supabase
+    .from("product_team_unlock_members")
+    .select("id, unlock_id, product_id, brand_id, profile_id, phone, role, created_at")
+    .eq("unlock_id", unlockId)
+    .order("created_at", { ascending: true });
+
+  if (error) {
+    throw error;
+  }
+
+  return (data ?? []).map(mapProductTeamUnlockMember);
+}
+
+export async function listProductTeamCheckoutProgress(unlockId: string): Promise<ProductTeamCheckoutProgress[]> {
+  const supabase = createAdminClient();
+
+  if (!supabase) {
+    return [];
+  }
+
+  const { data, error } = await supabase
+    .from("product_team_orders")
+    .select("id, profile_id, buyer_name, buyer_phone, amount_paid, status, created_at")
+    .eq("unlock_id", unlockId)
+    .in("status", ["hold", "confirmed"])
+    .order("created_at", { ascending: true });
+
+  if (error) {
+    throw error;
+  }
+
+  return ((data ?? []) as unknown as Record<string, unknown>[]).map((row) => ({
+    id: String(row.id),
+    profileId: (row.profile_id as string | null | undefined) ?? null,
+    buyerName: String(row.buyer_name ?? ""),
+    buyerPhone: String(row.buyer_phone ?? ""),
+    amountPaid: Number(row.amount_paid ?? 0),
+    status: row.status as ProductTeamCheckoutProgress["status"],
+    createdAt: row.created_at ? String(row.created_at) : undefined,
+  }));
+}
+
+async function productOrderUpdatesByOrderIds(orderIds: string[]) {
+  const supabase = createAdminClient();
+  const updatesByOrder = new Map<string, ProductTeamOrderUpdate[]>();
+
+  if (!supabase || !orderIds.length) {
+    return updatesByOrder;
+  }
+
+  const { data, error } = await supabase
+    .from("product_team_order_updates")
+    .select("id, order_id, status, remark, created_by, created_at")
+    .in("order_id", orderIds)
+    .order("created_at", { ascending: false });
+
+  if (error) {
+    if (error.code === "PGRST205" || error.code === "42P01") {
+      return updatesByOrder;
+    }
+
+    throw error;
+  }
+
+  for (const row of ((data ?? []) as unknown as Record<string, unknown>[])) {
+    const update = mapProductTeamOrderUpdate(row);
+    updatesByOrder.set(update.orderId, [...(updatesByOrder.get(update.orderId) ?? []), update]);
+  }
+
+  return updatesByOrder;
+}
+
+export async function syncProductTeamUnlockOrderStatus(unlockId: string) {
+  const supabase = createAdminClient();
+
+  if (!supabase) {
+    return null;
+  }
+
+  const [{ data: unlock, error: unlockError }, { count, error: orderError }] = await Promise.all([
+    supabase
+      .from("product_team_unlocks")
+      .select("id, current_count, threshold, status")
+      .eq("id", unlockId)
+      .maybeSingle(),
+    supabase
+      .from("product_team_orders")
+      .select("id", { count: "exact", head: true })
+      .eq("unlock_id", unlockId)
+      .in("status", ["hold", "confirmed"]),
+  ]);
+
+  if (unlockError) {
+    throw unlockError;
+  }
+
+  if (orderError) {
+    throw orderError;
+  }
+
+  if (!unlock) {
+    return null;
+  }
+
+  const currentCount = Number(unlock.current_count ?? 0);
+  const threshold = Number(unlock.threshold ?? 3);
+  const checkoutCount = count ?? 0;
+  const nextStatus = currentCount >= threshold && checkoutCount >= currentCount ? "completed" : currentCount >= threshold ? "unlocked" : String(unlock.status ?? "active");
+
+  if (nextStatus === "completed") {
+    const { error: ordersError } = await supabase
+      .from("product_team_orders")
+      .update({ status: "confirmed", updated_at: new Date().toISOString() })
+      .eq("unlock_id", unlockId)
+      .eq("status", "hold");
+
+    if (ordersError) {
+      throw ordersError;
+    }
+  }
+
+  const { data, error } = await supabase
+    .from("product_team_unlocks")
+    .update({ status: nextStatus, updated_at: new Date().toISOString() })
+    .eq("id", unlockId)
+    .select("id, product_id, brand_id, owner_profile_id, share_code, threshold, discount_percent, selected_variant, current_count, status, expires_at, created_at")
+    .single();
+
+  if (error) {
+    throw error;
+  }
+
+  return data ? mapProductTeamUnlock(data) : null;
+}
 
 function placeholderEmailForPhone(phone: string) {
   const digits = normalizePhone(phone).replace(/\D/g, "").slice(-10) || "unknown";
@@ -1318,6 +1759,184 @@ export async function listPrivateUnlockRoomsAdmin(): Promise<AdminPrivateUnlockR
   });
 }
 
+async function getProductAdminStats(productIds: string[]) {
+  const stats = new Map<string, { roomsCount: number; membersCount: number; ordersCount: number; ordersRevenue: number }>();
+  const supabase = createAdminClient();
+
+  productIds.forEach((productId) => stats.set(productId, { roomsCount: 0, membersCount: 0, ordersCount: 0, ordersRevenue: 0 }));
+
+  if (!supabase || !productIds.length) {
+    return stats;
+  }
+
+  const [rooms, members, orders] = await Promise.all([
+    supabase.from("product_team_unlocks").select("id, product_id"),
+    supabase.from("product_team_unlock_members").select("id, product_id"),
+    supabase.from("product_team_orders").select("id, product_id, amount_paid, status"),
+  ]);
+
+  if (rooms.error) throw rooms.error;
+  if (members.error) throw members.error;
+  if (orders.error) throw orders.error;
+
+  for (const row of rooms.data ?? []) {
+    const item = stats.get(String(row.product_id));
+    if (item) item.roomsCount += 1;
+  }
+
+  for (const row of members.data ?? []) {
+    const item = stats.get(String(row.product_id));
+    if (item) item.membersCount += 1;
+  }
+
+  for (const row of orders.data ?? []) {
+    const item = stats.get(String(row.product_id));
+    if (item) {
+      item.ordersCount += 1;
+      if (row.status === "hold" || row.status === "confirmed") {
+        item.ordersRevenue += Number(row.amount_paid ?? 0);
+      }
+    }
+  }
+
+  return stats;
+}
+
+export async function listProductsAdmin(brandId?: string): Promise<AdminBrandProduct[]> {
+  const products = await listBrandProducts();
+  const filteredProducts = brandId ? products.filter((product) => product.brandId === brandId) : products;
+  const stats = await getProductAdminStats(filteredProducts.map((product) => product.id));
+
+  return filteredProducts.map((product) => ({
+    ...product,
+    ...(stats.get(product.id) ?? { roomsCount: 0, membersCount: 0, ordersCount: 0, ordersRevenue: 0 }),
+  }));
+}
+
+export async function getProductAdmin(productId: string): Promise<AdminBrandProduct | null> {
+  const product = await getBrandProductById(productId);
+
+  if (!product) {
+    return null;
+  }
+
+  const stats = await getProductAdminStats([product.id]);
+  return {
+    ...product,
+    ...(stats.get(product.id) ?? { roomsCount: 0, membersCount: 0, ordersCount: 0, ordersRevenue: 0 }),
+  };
+}
+
+export async function listProductTeamUnlocksAdmin(productId?: string): Promise<AdminProductTeamUnlock[]> {
+  const supabase = createAdminClient();
+
+  if (!supabase) {
+    return [];
+  }
+
+  let query = supabase
+    .from("product_team_unlocks")
+    .select("id, product_id, brand_id, owner_profile_id, share_code, threshold, discount_percent, selected_variant, current_count, status, expires_at, created_at, products(title, slug), brands(name)")
+    .order("created_at", { ascending: false });
+
+  if (productId) {
+    query = query.eq("product_id", productId);
+  }
+
+  const { data, error } = await query;
+
+  if (error) {
+    throw error;
+  }
+
+  const rows = ((data ?? []) as unknown as Record<string, unknown>[]);
+  const unlockIds = rows.map((row) => String(row.id));
+  const [membersResult, ordersResult] = await Promise.all([
+    unlockIds.length ? supabase.from("product_team_unlock_members").select("id, unlock_id, product_id, brand_id, profile_id, phone, role, created_at").in("unlock_id", unlockIds) : Promise.resolve({ data: [], error: null }),
+    unlockIds.length ? supabase.from("product_team_orders").select("id, unlock_id, amount_paid, status").in("unlock_id", unlockIds) : Promise.resolve({ data: [], error: null }),
+  ]);
+
+  if (membersResult.error) throw membersResult.error;
+  if (ordersResult.error) throw ordersResult.error;
+
+  const membersByUnlock = new Map<string, ProductTeamUnlockMember[]>();
+  for (const row of ((membersResult.data ?? []) as unknown as Record<string, unknown>[])) {
+    const member = {
+      ...mapProductTeamUnlockMember(row),
+      phone: String(row.phone ?? ""),
+    };
+    membersByUnlock.set(member.unlockId, [...(membersByUnlock.get(member.unlockId) ?? []), member]);
+  }
+
+  const orderStats = new Map<string, { ordersCount: number; ordersRevenue: number }>();
+  for (const row of ordersResult.data ?? []) {
+    const unlockId = String(row.unlock_id);
+    const item = orderStats.get(unlockId) ?? { ordersCount: 0, ordersRevenue: 0 };
+    item.ordersCount += 1;
+    if (row.status === "hold" || row.status === "confirmed") item.ordersRevenue += Number(row.amount_paid ?? 0);
+    orderStats.set(unlockId, item);
+  }
+
+  return rows.map((row) => {
+    const productRow = relationOne(row.products);
+    const brandRow = relationOne(row.brands);
+    const unlock = mapProductTeamUnlock(row);
+    const stats = orderStats.get(unlock.id) ?? { ordersCount: 0, ordersRevenue: 0 };
+    return {
+      ...unlock,
+      productTitle: productRow ? String(productRow.title ?? "") : null,
+      productSlug: productRow ? String(productRow.slug ?? "") : null,
+      brandName: brandRow ? String(brandRow.name ?? "") : null,
+      members: membersByUnlock.get(unlock.id) ?? [],
+      ...stats,
+    };
+  });
+}
+
+export async function listProductTeamOrdersAdmin(productId?: string): Promise<AdminProductTeamOrder[]> {
+  const supabase = createAdminClient();
+
+  if (!supabase) {
+    return [];
+  }
+
+  let query = supabase
+    .from("product_team_orders")
+    .select("id, unlock_id, product_id, brand_id, profile_id, selected_variant, buyer_name, buyer_email, buyer_phone, delivery_address, amount_paid, razorpay_payment_id, razorpay_order_id, razorpay_signature, status, created_at, updated_at, products(title), brands(name), product_team_unlocks(share_code), profiles(full_name, phone, email)")
+    .order("created_at", { ascending: false });
+
+  if (productId) {
+    query = query.eq("product_id", productId);
+  }
+
+  const { data, error } = await query;
+
+  if (error) {
+    throw error;
+  }
+
+  const rows = ((data ?? []) as unknown as Record<string, unknown>[]);
+  const updatesByOrder = await productOrderUpdatesByOrderIds(rows.map((row) => String(row.id)));
+
+  return rows.map((row) => {
+    const order = mapProductTeamOrder(row);
+    const productRow = relationOne(row.products);
+    const brandRow = relationOne(row.brands);
+    const unlockRow = relationOne(row.product_team_unlocks);
+    const profileRow = relationOne(row.profiles);
+    return {
+      ...order,
+      productTitle: productRow ? String(productRow.title ?? "") : null,
+      brandName: brandRow ? String(brandRow.name ?? "") : null,
+      shareCode: unlockRow ? String(unlockRow.share_code ?? "") : null,
+      profileName: profileRow ? String(profileRow.full_name ?? "") : null,
+      profilePhone: profileRow ? String(profileRow.phone ?? "") : null,
+      profileEmail: profileRow ? String(profileRow.email ?? "") : null,
+      trackingUpdates: updatesByOrder.get(order.id) ?? [],
+    };
+  });
+}
+
 export async function listAccountUnlockRooms(profileId: string): Promise<AccountUnlockRoom[]> {
   const supabase = createAdminClient();
 
@@ -1354,6 +1973,134 @@ export async function listAccountUnlockRooms(profileId: string): Promise<Account
     });
 
   return Array.from(new Map(rooms.map((room) => [room.id, room])).values());
+}
+
+export async function listAccountProductUnlockRooms(profileId: string): Promise<AccountProductUnlockRoom[]> {
+  const supabase = createAdminClient();
+
+  if (!supabase) {
+    return [];
+  }
+
+  const { data, error } = await supabase
+    .from("product_team_unlock_members")
+    .select("role, created_at, product_team_unlocks!inner(id, product_id, brand_id, owner_profile_id, share_code, threshold, discount_percent, selected_variant, current_count, status, expires_at, created_at, products(title, slug), brands(name, slug))")
+    .eq("profile_id", profileId)
+    .order("created_at", { ascending: false });
+
+  if (error) {
+    throw error;
+  }
+
+  const rooms = ((data ?? []) as unknown as Record<string, unknown>[])
+    .map((memberRow) => {
+      const room = relationOne(memberRow.product_team_unlocks);
+
+      if (!room) {
+        return null;
+      }
+
+      const productRow = relationOne(room.products);
+      const brandRow = relationOne(room.brands);
+      const unlock = mapProductTeamUnlock(room);
+
+      return {
+        ...unlock,
+        productTitle: productRow ? String(productRow.title ?? "Product") : "Product",
+        productSlug: productRow ? String(productRow.slug ?? "") : "",
+        brandName: brandRow ? String(brandRow.name ?? "Brand") : "Brand",
+        brandSlug: brandRow ? String(brandRow.slug ?? "") : "",
+        memberRole: (memberRow.role as ProductTeamUnlockMember["role"]) ?? "member",
+        joinedAt: String(memberRow.created_at ?? unlock.createdAt ?? ""),
+      };
+    })
+    .filter((room): room is AccountProductUnlockRoom => Boolean(room));
+
+  return Array.from(new Map(rooms.map((room) => [room.id, room])).values());
+}
+
+export async function listAccountProductOrders(profileId: string): Promise<AccountProductOrder[]> {
+  const supabase = createAdminClient();
+
+  if (!supabase) {
+    return [];
+  }
+
+  const { data, error } = await supabase
+    .from("product_team_orders")
+    .select("id, unlock_id, product_id, brand_id, profile_id, selected_variant, buyer_name, buyer_email, buyer_phone, delivery_address, amount_paid, razorpay_payment_id, razorpay_order_id, razorpay_signature, status, created_at, updated_at, products(title, slug), brands(name, slug), product_team_unlocks(share_code, status, current_count, threshold)")
+    .eq("profile_id", profileId)
+    .order("created_at", { ascending: false });
+
+  if (error) {
+    throw error;
+  }
+
+  const rows = ((data ?? []) as unknown as Record<string, unknown>[]);
+  const updatesByOrder = await productOrderUpdatesByOrderIds(rows.map((row) => String(row.id)));
+
+  return rows.map((row) => {
+    const order = mapProductTeamOrder(row);
+    const productRow = relationOne(row.products);
+    const brandRow = relationOne(row.brands);
+    const unlockRow = relationOne(row.product_team_unlocks);
+
+    return {
+      ...order,
+      productTitle: productRow ? String(productRow.title ?? "Product") : "Product",
+      productSlug: productRow ? String(productRow.slug ?? "") : "",
+      brandName: brandRow ? String(brandRow.name ?? "Brand") : "Brand",
+      brandSlug: brandRow ? String(brandRow.slug ?? "") : "",
+      shareCode: unlockRow ? String(unlockRow.share_code ?? "") : "",
+      roomStatus: unlockRow ? (unlockRow.status as AccountProductOrder["roomStatus"]) : null,
+      roomCurrentCount: unlockRow ? Number(unlockRow.current_count ?? 0) : null,
+      roomThreshold: unlockRow ? Number(unlockRow.threshold ?? 0) : null,
+      trackingUpdates: updatesByOrder.get(order.id) ?? [],
+    };
+  });
+}
+
+export async function getAccountProductOrderById(profileId: string, orderId: string): Promise<AccountProductOrder | null> {
+  const supabase = createAdminClient();
+
+  if (!supabase) {
+    return null;
+  }
+
+  const { data, error } = await supabase
+    .from("product_team_orders")
+    .select("id, unlock_id, product_id, brand_id, profile_id, selected_variant, buyer_name, buyer_email, buyer_phone, delivery_address, amount_paid, razorpay_payment_id, razorpay_order_id, razorpay_signature, status, created_at, updated_at, products(title, slug), brands(name, slug), product_team_unlocks(share_code, status, current_count, threshold)")
+    .eq("profile_id", profileId)
+    .eq("id", orderId)
+    .maybeSingle();
+
+  if (error) {
+    throw error;
+  }
+
+  if (!data) {
+    return null;
+  }
+
+  const row = data as unknown as Record<string, unknown>;
+  const order = mapProductTeamOrder(row);
+  const updatesByOrder = await productOrderUpdatesByOrderIds([order.id]);
+  const productRow = relationOne(row.products);
+  const brandRow = relationOne(row.brands);
+  const unlockRow = relationOne(row.product_team_unlocks);
+
+  return {
+    ...order,
+    productTitle: productRow ? String(productRow.title ?? "Product") : "Product",
+    productSlug: productRow ? String(productRow.slug ?? "") : "",
+    brandName: brandRow ? String(brandRow.name ?? "Brand") : "Brand",
+    brandSlug: brandRow ? String(brandRow.slug ?? "") : "",
+    shareCode: unlockRow ? String(unlockRow.share_code ?? "") : "",
+    roomStatus: unlockRow ? (unlockRow.status as AccountProductOrder["roomStatus"]) : null,
+    roomCurrentCount: unlockRow ? Number(unlockRow.current_count ?? 0) : null,
+    roomThreshold: unlockRow ? Number(unlockRow.threshold ?? 0) : null,
+    trackingUpdates: updatesByOrder.get(order.id) ?? [],
+  };
 }
 
 export async function consumeCouponInventory(dealId: string) {

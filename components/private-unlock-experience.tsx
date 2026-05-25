@@ -648,7 +648,7 @@ export function PrivateUnlockExperience({ deal, config = null, initialUnlock = n
               ) : null}
               {unlock ? (
                 <Link href="/account/coupons" className="inline-flex min-h-12 flex-1 items-center justify-center rounded-[8px] border border-slate-300 bg-white px-5 py-3 text-sm font-semibold text-slate-950">
-                  View unlocked coupons
+                  View voucher coupons
                 </Link>
               ) : null}
             </div>

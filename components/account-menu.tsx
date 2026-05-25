@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
-import { LogOut, Ticket, User, UserCircle } from "lucide-react";
+import { LogOut, Package, Users, User, UserCircle } from "lucide-react";
 import { AccountProfile } from "@/lib/types";
 
 export function AccountMenu() {
@@ -76,9 +76,13 @@ export function AccountMenu() {
             <User className="h-4 w-4" />
             Account details
           </Link>
-          <Link href="/account/coupons" onClick={() => setOpen(false)} className="flex items-center gap-3 px-4 py-3 text-sm font-semibold transition hover:bg-slate-50">
-            <Ticket className="h-4 w-4" />
-            Unlocked coupons
+          <Link href="/account/rooms" onClick={() => setOpen(false)} className="flex items-center gap-3 px-4 py-3 text-sm font-semibold transition hover:bg-slate-50">
+            <Users className="h-4 w-4" />
+            Unlock rooms
+          </Link>
+          <Link href="/account/orders" onClick={() => setOpen(false)} className="flex items-center gap-3 px-4 py-3 text-sm font-semibold transition hover:bg-slate-50">
+            <Package className="h-4 w-4" />
+            Orders
           </Link>
           <button onClick={logout} className="flex w-full items-center gap-3 border-t border-slate-100 px-4 py-3 text-left text-sm font-semibold text-rose-700 transition hover:bg-rose-50">
             <LogOut className="h-4 w-4" />

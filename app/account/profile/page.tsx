@@ -17,10 +17,10 @@ export default async function AccountProfilePage() {
           <div>
             <p className="text-sm font-bold uppercase tracking-[0.16em] text-emerald-700">Account</p>
             <h1 className="mt-1 text-4xl font-semibold tracking-tight text-slate-950">Your details</h1>
-            <p className="mt-2 text-slate-600">Keep these updated so voucher delivery reaches the right place.</p>
+            <p className="mt-2 text-slate-600">Keep these updated so order updates reach the right place.</p>
           </div>
-          <Link href="/account/coupons" className="inline-flex h-11 items-center justify-center rounded-[8px] border border-slate-300 bg-white px-4 text-sm font-semibold text-slate-950">
-            Coupons
+          <Link href="/account/rooms" className="inline-flex h-11 items-center justify-center rounded-[8px] border border-slate-300 bg-white px-4 text-sm font-semibold text-slate-950">
+            Unlock rooms
           </Link>
         </div>
 

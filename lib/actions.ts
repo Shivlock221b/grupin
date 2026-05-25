@@ -4,7 +4,7 @@ import { revalidatePath, revalidateTag } from "next/cache";
 import { redirect } from "next/navigation";
 import { z } from "zod";
 import { requireAdmin } from "@/lib/auth";
-import { createUnlockedCouponsForPrivateUnlock, getDealById, joinDeal, listInterestsByDeal, updateDeal } from "@/lib/data";
+import { createUnlockedCouponsForPrivateUnlock, getDealById, joinDeal, listInterestsByDeal, syncProductTeamUnlockOrderStatus, updateDeal } from "@/lib/data";
 import { queueNotifications } from "@/lib/notifications";
 import { slugify } from "@/lib/utils";
 import { createAdminClient } from "@/lib/supabase-admin";
@@ -119,6 +119,91 @@ const unlockRoomUpdateSchema = z.object({
   status: z.enum(["active", "expired"]),
   expiresAt: z.string().optional(),
 });
+
+const productSchema = z.object({
+  productId: z.string().optional(),
+  brandId: z.string().min(1),
+  title: z.string().min(2),
+  slug: z.string().min(2).optional().or(z.literal("")),
+  vendor: z.string().optional().or(z.literal("")),
+  primaryImage: optionalUrl,
+  imageUrls: z.string().optional().or(z.literal("")),
+  variants: z.string().optional().or(z.literal("")),
+  tags: z.string().optional().or(z.literal("")),
+  productTypes: z.string().optional().or(z.literal("")),
+  priceMin: z.coerce.number().min(0).optional().or(z.literal("")),
+  priceMax: z.coerce.number().min(0).optional().or(z.literal("")),
+  sourceUrl: optionalUrl,
+  mrp: z.coerce.number().min(0).optional().or(z.literal("")),
+  salePrice: z.coerce.number().min(0).optional().or(z.literal("")),
+  sourceDiscountPercent: z.coerce.number().min(0).max(100).optional().or(z.literal("")),
+  rating: z.coerce.number().min(0).max(5).optional().or(z.literal("")),
+  ratingCount: z.coerce.number().int().min(0).optional().or(z.literal("")),
+  inStock: z.string().optional().transform((value) => value === "on"),
+  variantCount: z.coerce.number().int().min(0).optional().or(z.literal("")),
+  variantType: z.string().optional().or(z.literal("")),
+  description: z.string().optional().or(z.literal("")),
+  howToUse: z.string().optional().or(z.literal("")),
+  ingredients: z.string().optional().or(z.literal("")),
+});
+
+const productRoomUpdateSchema = z.object({
+  unlockId: z.string().min(1),
+  status: z.enum(["active", "unlocked", "expired", "completed", "cancelled"]),
+  threshold: z.coerce.number().int().min(1),
+  currentCount: z.coerce.number().int().min(0),
+  expiresAt: z.string().optional(),
+});
+
+const dummyProductRoomSchema = z.object({
+  productId: z.string().min(1),
+});
+
+const dummyProductMemberSchema = z.object({
+  unlockId: z.string().min(1),
+  productId: z.string().min(1),
+  brandId: z.string().min(1),
+  phone: z.string().min(8),
+});
+
+const productOrderUpdateSchema = z.object({
+  orderId: z.string().min(1),
+  status: z.enum(["hold", "confirmed", "refund_pending", "refunded", "cancelled"]),
+  amountPaid: z.coerce.number().int().min(0),
+});
+
+const productOrderTrackingUpdateSchema = z.object({
+  orderId: z.string().min(1),
+  status: z.enum(["hold", "confirmed", "processing", "packed", "shipped", "out_for_delivery", "delivered", "refund_pending", "refunded", "cancelled"]),
+  remark: z.string().max(1000).optional().or(z.literal("")),
+});
+
+const dummyProductOrderSchema = z.object({
+  unlockId: z.string().min(1),
+  productId: z.string().min(1),
+  brandId: z.string().min(1),
+  buyerName: z.string().min(2),
+  buyerPhone: z.string().min(8),
+  buyerEmail: z.string().email().optional().or(z.literal("")),
+  amountPaid: z.coerce.number().int().min(0),
+});
+
+function parseCsvList(value?: string) {
+  return (value ?? "").split(/\n|,/).map((item) => item.trim()).filter(Boolean);
+}
+
+function parseJson(value: string | undefined, fallback: unknown) {
+  if (!value?.trim()) return fallback;
+  return JSON.parse(value);
+}
+
+function revalidateProductAdmin() {
+  revalidateTag("brand-products", { expire: 0 });
+  revalidatePath("/admin/catalog");
+  revalidatePath("/admin/product-rooms");
+  revalidatePath("/admin/product-orders");
+  revalidatePath("/catalog");
+}
 
 const platformInventorySchema = z.object({
   total: z.coerce.number().int().min(0),
@@ -1003,4 +1088,337 @@ export async function sendTelegramTestAction(_state: ActionState): Promise<Actio
   }
 
   return { success: true, message: "Telegram test message sent." };
+}
+
+export async function upsertProductAction(_state: ActionState, formData: FormData): Promise<ActionState> {
+  await requireAdmin();
+  const parsed = productSchema.safeParse(Object.fromEntries(formData));
+
+  if (!parsed.success) {
+    return { success: false, message: parsed.error.issues[0]?.message ?? "Check product details." };
+  }
+
+  const supabase = createAdminClient();
+
+  if (!supabase) {
+    return { success: false, message: "Supabase admin client is not configured." };
+  }
+
+  try {
+    const productId = parsed.data.productId?.trim();
+    const slug = parsed.data.slug?.trim() || slugify(parsed.data.title);
+    const payload = {
+      brand_id: parsed.data.brandId,
+      title: parsed.data.title.trim(),
+      slug,
+      vendor: parsed.data.vendor || null,
+      primary_image: parsed.data.primaryImage || null,
+      image_urls: parseCsvList(parsed.data.imageUrls),
+      variants: parseJson(parsed.data.variants, []),
+      tags: parseCsvList(parsed.data.tags),
+      product_types: parseCsvList(parsed.data.productTypes),
+      price_min: parsed.data.priceMin === "" ? null : parsed.data.priceMin,
+      price_max: parsed.data.priceMax === "" ? null : parsed.data.priceMax,
+      source_url: parsed.data.sourceUrl || null,
+      mrp: parsed.data.mrp === "" ? null : parsed.data.mrp,
+      sale_price: parsed.data.salePrice === "" ? null : parsed.data.salePrice,
+      source_discount_percent: parsed.data.sourceDiscountPercent === "" ? null : parsed.data.sourceDiscountPercent,
+      rating: parsed.data.rating === "" ? null : parsed.data.rating,
+      rating_count: parsed.data.ratingCount === "" ? null : parsed.data.ratingCount,
+      in_stock: parsed.data.inStock,
+      variant_count: parsed.data.variantCount === "" ? null : parsed.data.variantCount,
+      variant_type: parsed.data.variantType || null,
+      description: parsed.data.description || null,
+      how_to_use: parsed.data.howToUse || null,
+      ingredients: parsed.data.ingredients || null,
+      updated_at: new Date().toISOString(),
+    };
+
+    const { data, error } = productId
+      ? await supabase.from("products").update(payload).eq("id", productId).select("id").single()
+      : await supabase.from("products").insert(payload).select("id").single();
+
+    if (error) {
+      return { success: false, message: error.message };
+    }
+
+    revalidateProductAdmin();
+    revalidatePath(`/admin/catalog/${data.id}`);
+    return { success: true, message: productId ? "Product updated." : "Product created." };
+  } catch (error) {
+    return { success: false, message: error instanceof Error ? error.message : "Could not save product." };
+  }
+}
+
+export async function deleteProductAction(formData: FormData) {
+  await requireAdmin();
+  const productId = String(formData.get("productId") ?? "");
+  const supabase = createAdminClient();
+
+  if (!supabase || !productId) return;
+
+  await supabase.from("products").delete().eq("id", productId);
+  revalidateProductAdmin();
+  redirect("/admin/catalog");
+}
+
+export async function createDummyProductRoomAction(_state: ActionState, formData: FormData): Promise<ActionState> {
+  await requireAdmin();
+  const parsed = dummyProductRoomSchema.safeParse(Object.fromEntries(formData));
+  const supabase = createAdminClient();
+
+  if (!parsed.success) return { success: false, message: "Choose a product." };
+  if (!supabase) return { success: false, message: "Supabase admin client is not configured." };
+
+  const { data: product, error: productError } = await supabase
+    .from("products")
+    .select("brand_id")
+    .eq("id", parsed.data.productId)
+    .maybeSingle();
+
+  if (productError) return { success: false, message: productError.message };
+  if (!product?.brand_id) return { success: false, message: "Product not found." };
+
+  const shareCode = createAdminShareCode();
+  const { error } = await supabase.from("product_team_unlocks").insert({
+    product_id: parsed.data.productId,
+    brand_id: product.brand_id,
+    share_code: shareCode,
+    threshold: 3,
+    discount_percent: 25,
+    expires_at: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
+  });
+
+  if (error) return { success: false, message: error.message };
+
+  revalidatePath("/admin/product-rooms");
+  revalidatePath("/admin/dashboard");
+  return { success: true, message: `Product room ${shareCode} created.` };
+}
+
+export async function addDummyProductTeamMemberAction(_state: ActionState, formData: FormData): Promise<ActionState> {
+  await requireAdmin();
+  const parsed = dummyProductMemberSchema.safeParse(Object.fromEntries(formData));
+  const supabase = createAdminClient();
+
+  if (!parsed.success) return { success: false, message: parsed.error.issues[0]?.message ?? "Check member details." };
+  if (!supabase) return { success: false, message: "Supabase admin client is not configured." };
+
+  const { error } = await supabase.from("product_team_unlock_members").insert({
+    unlock_id: parsed.data.unlockId,
+    product_id: parsed.data.productId,
+    brand_id: parsed.data.brandId,
+    phone: parsed.data.phone.trim(),
+    role: "member",
+  });
+
+  if (error) return { success: false, message: error.message };
+
+  const { count } = await supabase
+    .from("product_team_unlock_members")
+    .select("id", { count: "exact", head: true })
+    .eq("unlock_id", parsed.data.unlockId);
+
+  const { data: room } = await supabase
+    .from("product_team_unlocks")
+    .select("threshold")
+    .eq("id", parsed.data.unlockId)
+    .maybeSingle();
+
+  const currentCount = count ?? 0;
+  await supabase
+    .from("product_team_unlocks")
+    .update({
+      current_count: currentCount,
+      status: currentCount >= Number(room?.threshold ?? 3) ? "unlocked" : "active",
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", parsed.data.unlockId);
+
+  revalidatePath("/admin/product-rooms");
+  return { success: true, message: "Dummy member added." };
+}
+
+export async function deleteProductTeamMemberAction(formData: FormData) {
+  await requireAdmin();
+  const memberId = String(formData.get("memberId") ?? "");
+  const unlockId = String(formData.get("unlockId") ?? "");
+  const supabase = createAdminClient();
+
+  if (!supabase || !memberId) return;
+
+  await supabase.from("product_team_unlock_members").delete().eq("id", memberId);
+
+  if (unlockId) {
+    const { count } = await supabase
+      .from("product_team_unlock_members")
+      .select("id", { count: "exact", head: true })
+      .eq("unlock_id", unlockId);
+
+    const currentCount = count ?? 0;
+    await supabase
+      .from("product_team_unlocks")
+      .update({ current_count: currentCount, updated_at: new Date().toISOString() })
+      .eq("id", unlockId);
+  }
+
+  revalidatePath("/admin/product-rooms");
+  revalidatePath("/admin/dashboard");
+}
+
+export async function updateProductTeamRoomAction(_state: ActionState, formData: FormData): Promise<ActionState> {
+  await requireAdmin();
+  const parsed = productRoomUpdateSchema.safeParse(Object.fromEntries(formData));
+  const supabase = createAdminClient();
+
+  if (!parsed.success) return { success: false, message: parsed.error.issues[0]?.message ?? "Check room controls." };
+  if (!supabase) return { success: false, message: "Supabase admin client is not configured." };
+
+  const { error } = await supabase
+    .from("product_team_unlocks")
+    .update({
+      status: parsed.data.status,
+      threshold: parsed.data.threshold,
+      current_count: parsed.data.currentCount,
+      expires_at: parsed.data.expiresAt ? new Date(parsed.data.expiresAt).toISOString() : undefined,
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", parsed.data.unlockId);
+
+  if (error) return { success: false, message: error.message };
+  revalidatePath("/admin/product-rooms");
+  revalidatePath("/admin/dashboard");
+  return { success: true, message: "Product room updated." };
+}
+
+export async function deleteProductTeamRoomAction(formData: FormData) {
+  await requireAdmin();
+  const unlockId = String(formData.get("unlockId") ?? "");
+  const supabase = createAdminClient();
+  if (!supabase || !unlockId) return;
+  await supabase.from("product_team_unlocks").delete().eq("id", unlockId);
+  revalidatePath("/admin/product-rooms");
+  revalidatePath("/admin/dashboard");
+}
+
+export async function updateProductTeamOrderAction(_state: ActionState, formData: FormData): Promise<ActionState> {
+  await requireAdmin();
+  const parsed = productOrderUpdateSchema.safeParse(Object.fromEntries(formData));
+  const supabase = createAdminClient();
+
+  if (!parsed.success) return { success: false, message: parsed.error.issues[0]?.message ?? "Check order controls." };
+  if (!supabase) return { success: false, message: "Supabase admin client is not configured." };
+
+  const { data: existingOrder } = await supabase
+    .from("product_team_orders")
+    .select("unlock_id")
+    .eq("id", parsed.data.orderId)
+    .maybeSingle();
+
+  const { error } = await supabase
+    .from("product_team_orders")
+    .update({ status: parsed.data.status, amount_paid: parsed.data.amountPaid, updated_at: new Date().toISOString() })
+    .eq("id", parsed.data.orderId);
+
+  if (error) return { success: false, message: error.message };
+  if (existingOrder?.unlock_id) {
+    await syncProductTeamUnlockOrderStatus(String(existingOrder.unlock_id));
+  }
+  revalidatePath("/admin/product-orders");
+  revalidatePath("/admin/dashboard");
+  return { success: true, message: "Product order updated." };
+}
+
+export async function addProductTeamOrderTrackingUpdateAction(_state: ActionState, formData: FormData): Promise<ActionState> {
+  await requireAdmin();
+  const parsed = productOrderTrackingUpdateSchema.safeParse(Object.fromEntries(formData));
+  const supabase = createAdminClient();
+
+  if (!parsed.success) return { success: false, message: parsed.error.issues[0]?.message ?? "Check tracking update." };
+  if (!supabase) return { success: false, message: "Supabase admin client is not configured." };
+
+  const { data: order, error: orderError } = await supabase
+    .from("product_team_orders")
+    .select("id, unlock_id, status")
+    .eq("id", parsed.data.orderId)
+    .maybeSingle();
+
+  if (orderError) return { success: false, message: orderError.message };
+  if (!order) return { success: false, message: "Order not found." };
+
+  const { error } = await supabase.from("product_team_order_updates").insert({
+    order_id: parsed.data.orderId,
+    status: parsed.data.status,
+    remark: parsed.data.remark?.trim() || null,
+    created_by: "admin",
+  });
+
+  if (error) {
+    if (error.code === "PGRST205" || error.code === "42P01") {
+      return { success: false, message: "Run the product order tracking migration before adding timeline updates." };
+    }
+
+    return { success: false, message: error.message };
+  }
+
+  if (["hold", "confirmed", "refund_pending", "refunded", "cancelled"].includes(parsed.data.status)) {
+    const { error: updateError } = await supabase
+      .from("product_team_orders")
+      .update({ status: parsed.data.status, updated_at: new Date().toISOString() })
+      .eq("id", parsed.data.orderId);
+
+    if (updateError) return { success: false, message: updateError.message };
+    await syncProductTeamUnlockOrderStatus(String(order.unlock_id));
+  }
+
+  revalidatePath("/admin/product-orders");
+  revalidatePath("/admin/dashboard");
+  revalidatePath(`/account/orders/${parsed.data.orderId}`);
+  revalidatePath("/account/orders");
+  return { success: true, message: "Tracking update added." };
+}
+
+export async function createDummyProductOrderAction(_state: ActionState, formData: FormData): Promise<ActionState> {
+  await requireAdmin();
+  const parsed = dummyProductOrderSchema.safeParse(Object.fromEntries(formData));
+  const supabase = createAdminClient();
+
+  if (!parsed.success) return { success: false, message: parsed.error.issues[0]?.message ?? "Check dummy order details." };
+  if (!supabase) return { success: false, message: "Supabase admin client is not configured." };
+
+  const { error } = await supabase.from("product_team_orders").insert({
+    unlock_id: parsed.data.unlockId,
+    product_id: parsed.data.productId,
+    brand_id: parsed.data.brandId,
+    buyer_name: parsed.data.buyerName.trim(),
+    buyer_phone: parsed.data.buyerPhone.trim(),
+    buyer_email: parsed.data.buyerEmail || null,
+    amount_paid: parsed.data.amountPaid,
+    status: "hold",
+    delivery_address: {},
+    razorpay_payment_id: `pay_dummy_product_${Date.now()}`,
+  });
+
+  if (error) return { success: false, message: error.message };
+
+  await syncProductTeamUnlockOrderStatus(parsed.data.unlockId);
+
+  revalidatePath("/admin/product-orders");
+  revalidatePath("/admin/product-rooms");
+  revalidatePath("/admin/dashboard");
+  return { success: true, message: "Dummy product order created." };
+}
+
+export async function deleteProductTeamOrderAction(formData: FormData) {
+  await requireAdmin();
+  const orderId = String(formData.get("orderId") ?? "");
+  const supabase = createAdminClient();
+  if (!supabase || !orderId) return;
+  const { data: order } = await supabase.from("product_team_orders").select("unlock_id").eq("id", orderId).maybeSingle();
+  await supabase.from("product_team_orders").delete().eq("id", orderId);
+  if (order?.unlock_id) {
+    await syncProductTeamUnlockOrderStatus(String(order.unlock_id));
+  }
+  revalidatePath("/admin/product-orders");
+  revalidatePath("/admin/dashboard");
 }

@@ -2,7 +2,7 @@
 
 import { useActionState } from "react";
 import { type ActionState } from "@/lib/actions";
-import { AdminCouponClaim, AdminPrivateUnlockDeal, AdminPrivateUnlockMember, Brand, DashboardDeal, DashboardReservation } from "@/lib/types";
+import { AdminBrandProduct, AdminCouponClaim, AdminPrivateUnlockDeal, AdminPrivateUnlockMember, AdminProductTeamOrder, AdminProductTeamUnlock, Brand, DashboardDeal, DashboardReservation } from "@/lib/types";
 
 const initialState: ActionState = {
   success: false,
@@ -364,6 +364,308 @@ export function DealBrandAssignmentForm({
       </label>
       <button disabled={pending} className="rounded-[8px] bg-slate-950 px-4 py-2 text-sm font-semibold text-white disabled:opacity-60">
         {pending ? "Saving..." : "Assign brand"}
+      </button>
+      <FormMessage state={state} />
+    </form>
+  );
+}
+
+export function ProductAdminForm({
+  action,
+  product,
+  brands,
+}: {
+  action: Action;
+  product?: AdminBrandProduct | null;
+  brands: Brand[];
+}) {
+  const [state, formAction, pending] = useActionState(action, initialState);
+
+  return (
+    <form action={formAction} className="space-y-5 rounded-[8px] border border-slate-200 bg-white p-5">
+      {product ? <input type="hidden" name="productId" value={product.id} /> : null}
+      <div className="grid gap-4 sm:grid-cols-2">
+        <label className="space-y-1 text-sm font-medium text-slate-700">
+          Brand
+          <select name="brandId" required defaultValue={product?.brandId ?? ""} className="h-11 w-full rounded-[8px] border border-slate-200 px-3">
+            <option value="">Choose brand</option>
+            {brands.map((brand) => <option key={brand.id} value={brand.id}>{brand.name}</option>)}
+          </select>
+        </label>
+        <label className="space-y-1 text-sm font-medium text-slate-700">
+          Title
+          <input name="title" required defaultValue={product?.title ?? ""} className="h-11 w-full rounded-[8px] border border-slate-200 px-3" />
+        </label>
+        <label className="space-y-1 text-sm font-medium text-slate-700">
+          Slug
+          <input name="slug" defaultValue={product?.slug ?? ""} className="h-11 w-full rounded-[8px] border border-slate-200 px-3" />
+        </label>
+        <label className="space-y-1 text-sm font-medium text-slate-700">
+          Vendor
+          <input name="vendor" defaultValue={product?.vendor ?? ""} className="h-11 w-full rounded-[8px] border border-slate-200 px-3" />
+        </label>
+        <label className="space-y-1 text-sm font-medium text-slate-700">
+          Primary image
+          <input name="primaryImage" type="url" defaultValue={product?.primaryImage ?? ""} className="h-11 w-full rounded-[8px] border border-slate-200 px-3" />
+        </label>
+        <label className="space-y-1 text-sm font-medium text-slate-700">
+          Product URL
+          <input name="sourceUrl" type="url" defaultValue={product?.sourceUrl ?? product?.productUrl ?? ""} className="h-11 w-full rounded-[8px] border border-slate-200 px-3" />
+        </label>
+        <label className="space-y-1 text-sm font-medium text-slate-700">
+          MRP
+          <input name="mrp" type="number" min={0} step="0.01" defaultValue={product?.mrp ?? ""} className="h-11 w-full rounded-[8px] border border-slate-200 px-3" />
+        </label>
+        <label className="space-y-1 text-sm font-medium text-slate-700">
+          Sale price
+          <input name="salePrice" type="number" min={0} step="0.01" defaultValue={product?.salePrice ?? ""} className="h-11 w-full rounded-[8px] border border-slate-200 px-3" />
+        </label>
+        <label className="space-y-1 text-sm font-medium text-slate-700">
+          Source discount %
+          <input name="sourceDiscountPercent" type="number" min={0} max={100} step="0.01" defaultValue={product?.sourceDiscountPercent ?? ""} className="h-11 w-full rounded-[8px] border border-slate-200 px-3" />
+        </label>
+        <label className="space-y-1 text-sm font-medium text-slate-700">
+          Rating
+          <input name="rating" type="number" min={0} max={5} step="0.01" defaultValue={product?.rating ?? ""} className="h-11 w-full rounded-[8px] border border-slate-200 px-3" />
+        </label>
+        <label className="space-y-1 text-sm font-medium text-slate-700">
+          Rating count
+          <input name="ratingCount" type="number" min={0} defaultValue={product?.ratingCount ?? ""} className="h-11 w-full rounded-[8px] border border-slate-200 px-3" />
+        </label>
+        <label className="space-y-1 text-sm font-medium text-slate-700">
+          Variant type
+          <input name="variantType" placeholder="shade or size" defaultValue={product?.variantType ?? ""} className="h-11 w-full rounded-[8px] border border-slate-200 px-3" />
+        </label>
+        <label className="space-y-1 text-sm font-medium text-slate-700">
+          Variant count
+          <input name="variantCount" type="number" min={0} defaultValue={product?.variantCount ?? product?.variants.length ?? ""} className="h-11 w-full rounded-[8px] border border-slate-200 px-3" />
+        </label>
+        <label className="flex items-center gap-2 pt-7 text-sm font-semibold text-slate-700">
+          <input name="inStock" type="checkbox" defaultChecked={product?.inStock ?? true} />
+          In stock
+        </label>
+      </div>
+      <div className="grid gap-4 sm:grid-cols-2">
+        <label className="space-y-1 text-sm font-medium text-slate-700">
+          Tags, comma or newline separated
+          <textarea name="tags" rows={3} defaultValue={product?.tags.join(", ") ?? ""} className="w-full rounded-[8px] border border-slate-200 px-3 py-2" />
+        </label>
+        <label className="space-y-1 text-sm font-medium text-slate-700">
+          Product types
+          <textarea name="productTypes" rows={3} defaultValue={product?.productTypes.join(", ") ?? ""} className="w-full rounded-[8px] border border-slate-200 px-3 py-2" />
+        </label>
+        <label className="space-y-1 text-sm font-medium text-slate-700">
+          Image URLs
+          <textarea name="imageUrls" rows={4} defaultValue={product?.imageUrls.join("\n") ?? ""} className="w-full rounded-[8px] border border-slate-200 px-3 py-2" />
+        </label>
+        <label className="space-y-1 text-sm font-medium text-slate-700">
+          Variants JSON
+          <textarea name="variants" rows={4} defaultValue={JSON.stringify(product?.variants ?? [], null, 2)} className="w-full rounded-[8px] border border-slate-200 px-3 py-2 font-mono text-xs" />
+        </label>
+      </div>
+      <label className="space-y-1 text-sm font-medium text-slate-700">
+        Description
+        <textarea name="description" rows={3} defaultValue={product?.description ?? ""} className="w-full rounded-[8px] border border-slate-200 px-3 py-2" />
+      </label>
+      <div className="grid gap-4 sm:grid-cols-2">
+        <label className="space-y-1 text-sm font-medium text-slate-700">
+          How to use
+          <textarea name="howToUse" rows={4} defaultValue={product?.howToUse ?? ""} className="w-full rounded-[8px] border border-slate-200 px-3 py-2" />
+        </label>
+        <label className="space-y-1 text-sm font-medium text-slate-700">
+          Ingredients
+          <textarea name="ingredients" rows={4} defaultValue={product?.ingredients ?? ""} className="w-full rounded-[8px] border border-slate-200 px-3 py-2" />
+        </label>
+      </div>
+      <button disabled={pending} className="rounded-[8px] bg-slate-950 px-4 py-2 text-sm font-semibold text-white disabled:opacity-60">
+        {pending ? "Saving..." : product ? "Save product" : "Create product"}
+      </button>
+      <FormMessage state={state} />
+    </form>
+  );
+}
+
+export function DummyProductRoomForm({
+  action,
+  products,
+}: {
+  action: Action;
+  products: AdminBrandProduct[];
+}) {
+  const [state, formAction, pending] = useActionState(action, initialState);
+
+  return (
+    <form action={formAction} className="grid gap-3 rounded-[8px] border border-slate-200 bg-white p-4 sm:grid-cols-[1fr_auto]">
+      <select name="productId" required className="h-10 rounded-[8px] border border-slate-200 px-3 text-sm font-semibold text-slate-800">
+        <option value="">Choose product</option>
+        {products.map((product) => (
+          <option key={product.id} value={product.id}>{product.brand?.name} · {product.title}</option>
+        ))}
+      </select>
+      <button disabled={pending} className="h-10 rounded-[8px] bg-slate-950 px-4 text-sm font-semibold text-white disabled:opacity-60">
+        {pending ? "Creating..." : "Create dummy room"}
+      </button>
+      <div className="sm:col-span-2"><FormMessage state={state} /></div>
+    </form>
+  );
+}
+
+export function ProductTeamRoomControlForm({
+  action,
+  room,
+}: {
+  action: Action;
+  room: AdminProductTeamUnlock;
+}) {
+  const [state, formAction, pending] = useActionState(action, initialState);
+
+  return (
+    <form action={formAction} className="grid gap-2 rounded-[8px] border border-slate-200 bg-white p-3 sm:grid-cols-[130px_90px_90px_1fr_auto]">
+      <input type="hidden" name="unlockId" value={room.id} />
+      <select name="status" defaultValue={room.status} className="h-9 rounded-[8px] border border-slate-200 px-2 text-xs font-semibold">
+        <option value="active">Active</option>
+        <option value="unlocked">Unlocked</option>
+        <option value="expired">Expired</option>
+        <option value="completed">Completed</option>
+        <option value="cancelled">Cancelled</option>
+      </select>
+      <input name="threshold" type="number" min={1} defaultValue={room.threshold} className="h-9 rounded-[8px] border border-slate-200 px-2 text-xs font-semibold" />
+      <input name="currentCount" type="number" min={0} defaultValue={room.currentCount} className="h-9 rounded-[8px] border border-slate-200 px-2 text-xs font-semibold" />
+      <input name="expiresAt" type="datetime-local" defaultValue={room.expiresAt.slice(0, 16)} className="h-9 rounded-[8px] border border-slate-200 px-2 text-xs font-semibold" />
+      <button disabled={pending} className="h-9 rounded-[8px] bg-slate-950 px-3 text-xs font-semibold text-white disabled:opacity-60">Save</button>
+      <div className="sm:col-span-5"><FormMessage state={state} /></div>
+    </form>
+  );
+}
+
+export function DummyProductMemberForm({
+  action,
+  room,
+}: {
+  action: Action;
+  room: AdminProductTeamUnlock;
+}) {
+  const [state, formAction, pending] = useActionState(action, initialState);
+
+  return (
+    <form action={formAction} className="grid gap-2 rounded-[8px] border border-slate-200 bg-slate-50 p-3 sm:grid-cols-[1fr_auto]">
+      <input type="hidden" name="unlockId" value={room.id} />
+      <input type="hidden" name="productId" value={room.productId} />
+      <input type="hidden" name="brandId" value={room.brandId} />
+      <input name="phone" required placeholder="Phone" className="h-9 rounded-[8px] border border-slate-200 px-2 text-sm" />
+      <button disabled={pending} className="h-9 rounded-[8px] bg-slate-950 px-3 text-xs font-semibold text-white disabled:opacity-60">{pending ? "Adding..." : "Add dummy member"}</button>
+      <div className="sm:col-span-2"><FormMessage state={state} /></div>
+    </form>
+  );
+}
+
+export function ProductTeamOrderStatusForm({
+  action,
+  order,
+}: {
+  action: Action;
+  order: AdminProductTeamOrder;
+}) {
+  const [state, formAction, pending] = useActionState(action, initialState);
+
+  return (
+    <form action={formAction} className="flex flex-wrap items-center gap-2">
+      <input type="hidden" name="orderId" value={order.id} />
+      <select name="status" defaultValue={order.status} className="h-9 rounded-[8px] border border-slate-200 px-2 text-xs font-semibold">
+        <option value="hold">Hold</option>
+        <option value="confirmed">Confirmed</option>
+        <option value="refund_pending">Refund pending</option>
+        <option value="refunded">Refunded</option>
+        <option value="cancelled">Cancelled</option>
+      </select>
+      <input name="amountPaid" type="number" min={0} defaultValue={order.amountPaid} className="h-9 w-28 rounded-[8px] border border-slate-200 px-2 text-xs font-semibold" />
+      <button disabled={pending} className="h-9 rounded-[8px] bg-slate-950 px-3 text-xs font-semibold text-white disabled:opacity-60">Save</button>
+      <FormMessage state={state} />
+    </form>
+  );
+}
+
+export function ProductOrderTrackingUpdateForm({
+  action,
+  order,
+}: {
+  action: Action;
+  order: AdminProductTeamOrder;
+}) {
+  const [state, formAction, pending] = useActionState(action, initialState);
+
+  return (
+    <form action={formAction} className="mt-3 grid gap-2 rounded-[8px] border border-slate-200 bg-slate-50 p-3">
+      <input type="hidden" name="orderId" value={order.id} />
+      <div className="grid gap-2 sm:grid-cols-[160px_1fr_auto]">
+        <select name="status" defaultValue="processing" className="h-9 rounded-[8px] border border-slate-200 px-2 text-xs font-semibold">
+          <option value="processing">Processing</option>
+          <option value="packed">Packed</option>
+          <option value="shipped">Shipped</option>
+          <option value="out_for_delivery">Out for delivery</option>
+          <option value="delivered">Delivered</option>
+          <option value="confirmed">Confirmed</option>
+          <option value="refund_pending">Refund pending</option>
+          <option value="refunded">Refunded</option>
+          <option value="cancelled">Cancelled</option>
+        </select>
+        <input name="remark" placeholder="Remark visible to user" className="h-9 rounded-[8px] border border-slate-200 px-2 text-xs font-semibold" />
+        <button disabled={pending} className="h-9 rounded-[8px] bg-cyan-700 px-3 text-xs font-semibold text-white disabled:opacity-60">{pending ? "Adding..." : "Add update"}</button>
+      </div>
+      <FormMessage state={state} />
+    </form>
+  );
+}
+
+export function DummyProductOrderForm({
+  action,
+  rooms,
+}: {
+  action: Action;
+  rooms: AdminProductTeamUnlock[];
+}) {
+  const [state, formAction, pending] = useActionState(action, initialState);
+
+  return (
+    <form action={formAction} className="space-y-3 rounded-[8px] border border-slate-200 bg-white p-4">
+      <div className="grid gap-3 sm:grid-cols-2">
+        <label className="space-y-1 text-sm font-medium text-slate-700">
+          Room
+          <select name="unlockId" required className="h-10 w-full rounded-[8px] border border-slate-200 px-3">
+            <option value="">Choose room</option>
+            {rooms.map((room) => (
+              <option key={room.id} value={room.id}>{room.productTitle} · {room.shareCode}</option>
+            ))}
+          </select>
+        </label>
+        <label className="space-y-1 text-sm font-medium text-slate-700">
+          Product ID
+          <select name="productId" required className="h-10 w-full rounded-[8px] border border-slate-200 px-3">
+            <option value="">Choose product</option>
+            {rooms.map((room) => (
+              <option key={room.id} value={room.productId}>{room.productTitle}</option>
+            ))}
+          </select>
+        </label>
+        <label className="space-y-1 text-sm font-medium text-slate-700">
+          Brand ID
+          <select name="brandId" required className="h-10 w-full rounded-[8px] border border-slate-200 px-3">
+            <option value="">Choose brand</option>
+            {rooms.map((room) => (
+              <option key={room.id} value={room.brandId}>{room.brandName}</option>
+            ))}
+          </select>
+        </label>
+        <label className="space-y-1 text-sm font-medium text-slate-700">
+          Amount paid, paise
+          <input name="amountPaid" type="number" min={0} defaultValue={0} className="h-10 w-full rounded-[8px] border border-slate-200 px-3" />
+        </label>
+        <input name="buyerName" required placeholder="Buyer name" className="h-10 rounded-[8px] border border-slate-200 px-3 text-sm" />
+        <input name="buyerPhone" required placeholder="Buyer phone" className="h-10 rounded-[8px] border border-slate-200 px-3 text-sm" />
+        <input name="buyerEmail" type="email" placeholder="Buyer email" className="h-10 rounded-[8px] border border-slate-200 px-3 text-sm sm:col-span-2" />
+      </div>
+      <button disabled={pending} className="h-10 rounded-[8px] bg-slate-950 px-4 text-sm font-semibold text-white disabled:opacity-60">
+        {pending ? "Creating..." : "Create dummy order"}
       </button>
       <FormMessage state={state} />
     </form>
