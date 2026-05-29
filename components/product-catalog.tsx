@@ -236,9 +236,9 @@ export function ProductCatalog({ products, brandSlug }: ProductCatalogProps) {
           <div className="relative flex h-[390px] max-w-3xl flex-col justify-end p-5 sm:h-[470px] sm:p-8 lg:p-10">
             {featured ? (
               <div className="relative max-w-md">
-                <p className="text-xs font-semibold uppercase tracking-[0.16em] text-cyan-200">{brandName} top pick</p>
+                {/* <p className="text-xs font-semibold uppercase tracking-[0.16em] text-cyan-200">{brandName} top pick</p>
                 <h1 className="mt-2 line-clamp-2 text-3xl font-semibold leading-tight tracking-tight sm:text-4xl">{featured.title}</h1>
-                <p className="mt-3 max-w-sm text-sm font-semibold leading-6 text-white/75">Team Price unlocks brand-wide when 3 member carts are ready.</p>
+                <p className="mt-3 max-w-sm text-sm font-semibold leading-6 text-white/75">Team Price unlocks brand-wide when 3 member carts are ready.</p> */}
                 <div className="mt-5 flex flex-wrap gap-2">
                   <div className="rounded-[12px] bg-white px-3 py-2 text-slate-950 shadow-[0_12px_30px_rgba(0,0,0,0.18)]">
                     <p className="text-xs font-semibold text-slate-500">MRP</p>
