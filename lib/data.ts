@@ -35,6 +35,7 @@ import {
   PrivateUnlockMember,
   ProductTeamUnlock,
   ProductTeamUnlockMember,
+  ProductTeamCartItem,
   ProductTeamOrder,
   ProductTeamCheckoutProgress,
   ProductTeamOrderUpdate,
@@ -321,11 +322,15 @@ function mapBrandProduct(row: Record<string, unknown>): BrandProduct {
 
 const PRODUCT_COLUMNS = "id, brand_id, title, slug, vendor, primary_image, image_urls, variants, tags, product_types, price_min, price_max, source_product_ids, source_handles, source_files, source_product_name, source_product_title, source_slug, source_url, mrp, sale_price, source_discount_percent, rating, rating_count, in_stock, variant_count, variant_type, primary_categories, description, how_to_use, ingredients, review_count, detail_image_url, published_at, created_at, updated_at";
 const CATALOG_PRODUCT_COLUMNS = "id, brand_id, title, slug, vendor, primary_image, tags, product_types, price_min, price_max, source_handles, source_url, mrp, sale_price, source_discount_percent, rating, rating_count, in_stock, variant_count, variant_type, created_at, updated_at";
+const PRODUCT_TEAM_UNLOCK_COLUMNS = "id, product_id, brand_id, owner_profile_id, share_code, threshold, discount_percent, selected_variant, current_count, member_count, room_scope, status, expires_at, closed_at, created_at";
+const PRODUCT_TEAM_MEMBER_COLUMNS = "id, unlock_id, product_id, brand_id, profile_id, selected_variant, phone, role, cart_status, room_scope, cart_checked_out_at, created_at";
+const PRODUCT_TEAM_CART_ITEM_COLUMNS = "id, unlock_id, member_id, product_id, brand_id, selected_variant, variant_key, quantity, mrp_snapshot, team_price_snapshot, discount_percent_snapshot, product_snapshot, created_at, updated_at";
+const PRODUCT_TEAM_ORDER_COLUMNS = "id, unlock_id, product_id, brand_id, profile_id, cart_member_id, selected_variant, items, buyer_name, buyer_email, buyer_phone, delivery_address, amount_paid, razorpay_payment_id, razorpay_order_id, razorpay_signature, status, created_at, updated_at";
 
 function mapProductTeamUnlock(row: Record<string, unknown>): ProductTeamUnlock {
   return {
     id: String(row.id),
-    productId: String(row.product_id),
+    productId: (row.product_id as string | null | undefined) ?? null,
     brandId: String(row.brand_id),
     ownerProfileId: (row.owner_profile_id as string | null | undefined) ?? null,
     shareCode: String(row.share_code),
@@ -333,8 +338,11 @@ function mapProductTeamUnlock(row: Record<string, unknown>): ProductTeamUnlock {
     discountPercent: Number(row.discount_percent ?? 25),
     selectedVariant: row.selected_variant && typeof row.selected_variant === "object" ? row.selected_variant as ProductTeamUnlock["selectedVariant"] : null,
     currentCount: Number(row.current_count ?? 0),
+    memberCount: Number(row.member_count ?? row.current_count ?? 0),
+    roomScope: (row.room_scope as ProductTeamUnlock["roomScope"] | null | undefined) ?? "product",
     status: row.status as ProductTeamUnlock["status"],
     expiresAt: String(row.expires_at),
+    closedAt: (row.closed_at as string | null | undefined) ?? null,
     createdAt: row.created_at ? String(row.created_at) : undefined,
   };
 }
@@ -343,13 +351,35 @@ function mapProductTeamUnlockMember(row: Record<string, unknown>): ProductTeamUn
   return {
     id: String(row.id),
     unlockId: String(row.unlock_id),
-    productId: String(row.product_id),
+    productId: (row.product_id as string | null | undefined) ?? null,
     brandId: String(row.brand_id),
     profileId: (row.profile_id as string | null | undefined) ?? null,
     selectedVariant: row.selected_variant && typeof row.selected_variant === "object" ? row.selected_variant as ProductTeamUnlockMember["selectedVariant"] : null,
     phone: String(row.phone ?? ""),
     role: row.role as ProductTeamUnlockMember["role"],
+    cartStatus: (row.cart_status as ProductTeamUnlockMember["cartStatus"] | null | undefined) ?? "empty",
+    roomScope: (row.room_scope as ProductTeamUnlockMember["roomScope"] | null | undefined) ?? "product",
+    cartCheckedOutAt: (row.cart_checked_out_at as string | null | undefined) ?? null,
     createdAt: String(row.created_at),
+  };
+}
+
+function mapProductTeamCartItem(row: Record<string, unknown>): ProductTeamCartItem {
+  return {
+    id: String(row.id),
+    unlockId: String(row.unlock_id),
+    memberId: String(row.member_id),
+    productId: String(row.product_id),
+    brandId: String(row.brand_id),
+    selectedVariant: row.selected_variant && typeof row.selected_variant === "object" ? row.selected_variant as ProductTeamCartItem["selectedVariant"] : null,
+    variantKey: String(row.variant_key ?? "default"),
+    quantity: Number(row.quantity ?? 1),
+    mrpSnapshot: Number(row.mrp_snapshot ?? 0),
+    teamPriceSnapshot: Number(row.team_price_snapshot ?? 0),
+    discountPercentSnapshot: Number(row.discount_percent_snapshot ?? 25),
+    productSnapshot: row.product_snapshot && typeof row.product_snapshot === "object" ? row.product_snapshot as ProductTeamCartItem["productSnapshot"] : {},
+    createdAt: row.created_at ? String(row.created_at) : undefined,
+    updatedAt: row.updated_at ? String(row.updated_at) : undefined,
   };
 }
 
@@ -357,10 +387,12 @@ function mapProductTeamOrder(row: Record<string, unknown>): ProductTeamOrder {
   return {
     id: String(row.id),
     unlockId: String(row.unlock_id),
-    productId: String(row.product_id),
+    productId: (row.product_id as string | null | undefined) ?? null,
     brandId: String(row.brand_id),
     profileId: (row.profile_id as string | null | undefined) ?? null,
+    cartMemberId: (row.cart_member_id as string | null | undefined) ?? null,
     selectedVariant: row.selected_variant && typeof row.selected_variant === "object" ? row.selected_variant as ProductTeamOrder["selectedVariant"] : null,
+    items: Array.isArray(row.items) ? (row.items as unknown as Record<string, unknown>[]).map(mapProductTeamCartItem) : [],
     buyerName: String(row.buyer_name ?? ""),
     buyerEmail: (row.buyer_email as string | null | undefined) ?? null,
     buyerPhone: String(row.buyer_phone ?? ""),
@@ -725,7 +757,7 @@ export async function getProductTeamUnlockByCode(code: string): Promise<ProductT
 
   const { data, error } = await supabase
     .from("product_team_unlocks")
-    .select("id, product_id, brand_id, owner_profile_id, share_code, threshold, discount_percent, selected_variant, current_count, status, expires_at, created_at")
+    .select(PRODUCT_TEAM_UNLOCK_COLUMNS)
     .eq("share_code", code.trim().toUpperCase())
     .maybeSingle();
 
@@ -745,7 +777,7 @@ export async function listProductTeamUnlockMembers(unlockId: string): Promise<Pr
 
   const { data, error } = await supabase
     .from("product_team_unlock_members")
-    .select("id, unlock_id, product_id, brand_id, profile_id, phone, role, created_at")
+    .select(PRODUCT_TEAM_MEMBER_COLUMNS)
     .eq("unlock_id", unlockId)
     .order("created_at", { ascending: true });
 
@@ -754,6 +786,55 @@ export async function listProductTeamUnlockMembers(unlockId: string): Promise<Pr
   }
 
   return (data ?? []).map(mapProductTeamUnlockMember);
+}
+
+export async function listProductTeamCartItems(unlockId: string): Promise<ProductTeamCartItem[]> {
+  const supabase = createAdminClient();
+
+  if (!supabase) {
+    return [];
+  }
+
+  const { data, error } = await supabase
+    .from("product_team_cart_items")
+    .select(PRODUCT_TEAM_CART_ITEM_COLUMNS)
+    .eq("unlock_id", unlockId)
+    .order("created_at", { ascending: true });
+
+  if (error) {
+    if (error.code === "PGRST205" || error.code === "42P01") {
+      return [];
+    }
+
+    throw error;
+  }
+
+  return ((data ?? []) as unknown as Record<string, unknown>[]).map(mapProductTeamCartItem);
+}
+
+export async function listProductTeamCartItemsForMember(unlockId: string, memberId: string): Promise<ProductTeamCartItem[]> {
+  const supabase = createAdminClient();
+
+  if (!supabase) {
+    return [];
+  }
+
+  const { data, error } = await supabase
+    .from("product_team_cart_items")
+    .select(PRODUCT_TEAM_CART_ITEM_COLUMNS)
+    .eq("unlock_id", unlockId)
+    .eq("member_id", memberId)
+    .order("created_at", { ascending: true });
+
+  if (error) {
+    if (error.code === "PGRST205" || error.code === "42P01") {
+      return [];
+    }
+
+    throw error;
+  }
+
+  return ((data ?? []) as unknown as Record<string, unknown>[]).map(mapProductTeamCartItem);
 }
 
 export async function listProductTeamCheckoutProgress(unlockId: string): Promise<ProductTeamCheckoutProgress[]> {
@@ -822,21 +903,37 @@ export async function syncProductTeamUnlockOrderStatus(unlockId: string) {
     return null;
   }
 
-  const [{ data: unlock, error: unlockError }, { count, error: orderError }] = await Promise.all([
+  const [{ data: unlock, error: unlockError }, { data: members, error: membersError }, { data: cartRows, error: cartError }, { data: orders, error: orderError }] = await Promise.all([
     supabase
       .from("product_team_unlocks")
-      .select("id, current_count, threshold, status")
+      .select(`${PRODUCT_TEAM_UNLOCK_COLUMNS}, expires_at`)
       .eq("id", unlockId)
       .maybeSingle(),
     supabase
+      .from("product_team_unlock_members")
+      .select("id, profile_id, cart_status")
+      .eq("unlock_id", unlockId),
+    supabase
+      .from("product_team_cart_items")
+      .select("member_id")
+      .eq("unlock_id", unlockId),
+    supabase
       .from("product_team_orders")
-      .select("id", { count: "exact", head: true })
+      .select("id, cart_member_id, profile_id, status")
       .eq("unlock_id", unlockId)
       .in("status", ["hold", "confirmed"]),
   ]);
 
   if (unlockError) {
     throw unlockError;
+  }
+
+  if (membersError) {
+    throw membersError;
+  }
+
+  if (cartError && cartError.code !== "PGRST205" && cartError.code !== "42P01") {
+    throw cartError;
   }
 
   if (orderError) {
@@ -847,10 +944,38 @@ export async function syncProductTeamUnlockOrderStatus(unlockId: string) {
     return null;
   }
 
-  const currentCount = Number(unlock.current_count ?? 0);
+  if (unlock.status === "completed" || unlock.status === "cancelled") {
+    return mapProductTeamUnlock(unlock);
+  }
+
+  const cartMemberIds = new Set(((cartRows ?? []) as unknown as Record<string, unknown>[]).map((row) => String(row.member_id)).filter(Boolean));
+  const currentCount = cartMemberIds.size;
+  const memberCount = (members ?? []).length;
+  const memberIdByProfileId = new Map(
+    ((members ?? []) as unknown as Record<string, unknown>[])
+      .map((row) => [String(row.profile_id ?? ""), String(row.id ?? "")] as const)
+      .filter(([profileId, memberId]) => Boolean(profileId && memberId)),
+  );
   const threshold = Number(unlock.threshold ?? 3);
-  const checkoutCount = count ?? 0;
-  const nextStatus = currentCount >= threshold && checkoutCount >= currentCount ? "completed" : currentCount >= threshold ? "unlocked" : String(unlock.status ?? "active");
+  const checkoutMemberIds = new Set<string>();
+  for (const row of ((orders ?? []) as unknown as Record<string, unknown>[])) {
+    const cartMemberId = row.cart_member_id ? String(row.cart_member_id) : "";
+    const memberIdFromProfile = row.profile_id ? memberIdByProfileId.get(String(row.profile_id)) ?? "" : "";
+    const memberId = cartMemberId || memberIdFromProfile;
+
+    if (memberId) {
+      checkoutMemberIds.add(memberId);
+    }
+  }
+  const checkoutCount = checkoutMemberIds.size;
+  const expired = unlock.expires_at ? new Date(String(unlock.expires_at)).getTime() <= Date.now() : false;
+  const nextStatus = expired
+    ? "expired"
+    : currentCount >= threshold && checkoutCount >= currentCount
+    ? "completed"
+    : currentCount >= threshold
+      ? "unlocked"
+      : "active";
 
   if (nextStatus === "completed") {
     const { error: ordersError } = await supabase
@@ -864,11 +989,29 @@ export async function syncProductTeamUnlockOrderStatus(unlockId: string) {
     }
   }
 
+  if (nextStatus === "expired") {
+    const { error: ordersError } = await supabase
+      .from("product_team_orders")
+      .update({ status: "refund_pending", updated_at: new Date().toISOString() })
+      .eq("unlock_id", unlockId)
+      .eq("status", "hold");
+
+    if (ordersError) {
+      throw ordersError;
+    }
+  }
+
   const { data, error } = await supabase
     .from("product_team_unlocks")
-    .update({ status: nextStatus, updated_at: new Date().toISOString() })
+    .update({
+      current_count: currentCount,
+      member_count: memberCount,
+      status: nextStatus,
+      closed_at: nextStatus === "completed" || nextStatus === "expired" ? new Date().toISOString() : null,
+      updated_at: new Date().toISOString(),
+    })
     .eq("id", unlockId)
-    .select("id, product_id, brand_id, owner_profile_id, share_code, threshold, discount_percent, selected_variant, current_count, status, expires_at, created_at")
+    .select(PRODUCT_TEAM_UNLOCK_COLUMNS)
     .single();
 
   if (error) {
@@ -1836,7 +1979,7 @@ export async function listProductTeamUnlocksAdmin(productId?: string): Promise<A
 
   let query = supabase
     .from("product_team_unlocks")
-    .select("id, product_id, brand_id, owner_profile_id, share_code, threshold, discount_percent, selected_variant, current_count, status, expires_at, created_at, products(title, slug), brands(name)")
+    .select(`${PRODUCT_TEAM_UNLOCK_COLUMNS}, products(title, slug), brands(name)`)
     .order("created_at", { ascending: false });
 
   if (productId) {
@@ -1852,7 +1995,7 @@ export async function listProductTeamUnlocksAdmin(productId?: string): Promise<A
   const rows = ((data ?? []) as unknown as Record<string, unknown>[]);
   const unlockIds = rows.map((row) => String(row.id));
   const [membersResult, ordersResult] = await Promise.all([
-    unlockIds.length ? supabase.from("product_team_unlock_members").select("id, unlock_id, product_id, brand_id, profile_id, phone, role, created_at").in("unlock_id", unlockIds) : Promise.resolve({ data: [], error: null }),
+    unlockIds.length ? supabase.from("product_team_unlock_members").select(PRODUCT_TEAM_MEMBER_COLUMNS).in("unlock_id", unlockIds) : Promise.resolve({ data: [], error: null }),
     unlockIds.length ? supabase.from("product_team_orders").select("id, unlock_id, amount_paid, status").in("unlock_id", unlockIds) : Promise.resolve({ data: [], error: null }),
   ]);
 
@@ -1877,6 +2020,22 @@ export async function listProductTeamUnlocksAdmin(productId?: string): Promise<A
     orderStats.set(unlockId, item);
   }
 
+  const cartItemsByUnlock = new Map<string, ProductTeamCartItem[]>();
+  if (unlockIds.length) {
+    const { data: cartRows, error: cartError } = await supabase
+      .from("product_team_cart_items")
+      .select(PRODUCT_TEAM_CART_ITEM_COLUMNS)
+      .in("unlock_id", unlockIds)
+      .order("created_at", { ascending: false });
+
+    if (cartError) throw cartError;
+
+    for (const row of ((cartRows ?? []) as unknown as Record<string, unknown>[])) {
+      const item = mapProductTeamCartItem(row);
+      cartItemsByUnlock.set(item.unlockId, [...(cartItemsByUnlock.get(item.unlockId) ?? []), item]);
+    }
+  }
+
   return rows.map((row) => {
     const productRow = relationOne(row.products);
     const brandRow = relationOne(row.brands);
@@ -1888,6 +2047,7 @@ export async function listProductTeamUnlocksAdmin(productId?: string): Promise<A
       productSlug: productRow ? String(productRow.slug ?? "") : null,
       brandName: brandRow ? String(brandRow.name ?? "") : null,
       members: membersByUnlock.get(unlock.id) ?? [],
+      cartItems: cartItemsByUnlock.get(unlock.id) ?? [],
       ...stats,
     };
   });
@@ -1902,7 +2062,7 @@ export async function listProductTeamOrdersAdmin(productId?: string): Promise<Ad
 
   let query = supabase
     .from("product_team_orders")
-    .select("id, unlock_id, product_id, brand_id, profile_id, selected_variant, buyer_name, buyer_email, buyer_phone, delivery_address, amount_paid, razorpay_payment_id, razorpay_order_id, razorpay_signature, status, created_at, updated_at, products(title), brands(name), product_team_unlocks(share_code), profiles(full_name, phone, email)")
+    .select(`${PRODUCT_TEAM_ORDER_COLUMNS}, products(title), brands(name), product_team_unlocks(share_code), profiles(full_name, phone, email)`)
     .order("created_at", { ascending: false });
 
   if (productId) {
@@ -2028,7 +2188,7 @@ export async function listAccountProductOrders(profileId: string): Promise<Accou
 
   const { data, error } = await supabase
     .from("product_team_orders")
-    .select("id, unlock_id, product_id, brand_id, profile_id, selected_variant, buyer_name, buyer_email, buyer_phone, delivery_address, amount_paid, razorpay_payment_id, razorpay_order_id, razorpay_signature, status, created_at, updated_at, products(title, slug), brands(name, slug), product_team_unlocks(share_code, status, current_count, threshold)")
+    .select("id, unlock_id, product_id, brand_id, profile_id, cart_member_id, selected_variant, items, buyer_name, buyer_email, buyer_phone, delivery_address, amount_paid, razorpay_payment_id, razorpay_order_id, razorpay_signature, status, created_at, updated_at, products(title, slug), brands(name, slug), product_team_unlocks(share_code, status, current_count, threshold)")
     .eq("profile_id", profileId)
     .order("created_at", { ascending: false });
 
@@ -2069,7 +2229,7 @@ export async function getAccountProductOrderById(profileId: string, orderId: str
 
   const { data, error } = await supabase
     .from("product_team_orders")
-    .select("id, unlock_id, product_id, brand_id, profile_id, selected_variant, buyer_name, buyer_email, buyer_phone, delivery_address, amount_paid, razorpay_payment_id, razorpay_order_id, razorpay_signature, status, created_at, updated_at, products(title, slug), brands(name, slug), product_team_unlocks(share_code, status, current_count, threshold)")
+    .select("id, unlock_id, product_id, brand_id, profile_id, cart_member_id, selected_variant, items, buyer_name, buyer_email, buyer_phone, delivery_address, amount_paid, razorpay_payment_id, razorpay_order_id, razorpay_signature, status, created_at, updated_at, products(title, slug), brands(name, slug), product_team_unlocks(share_code, status, current_count, threshold)")
     .eq("profile_id", profileId)
     .eq("id", orderId)
     .maybeSingle();

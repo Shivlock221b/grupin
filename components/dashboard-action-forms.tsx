@@ -497,14 +497,15 @@ export function DummyProductRoomForm({
   return (
     <form action={formAction} className="grid gap-3 rounded-[8px] border border-slate-200 bg-white p-4 sm:grid-cols-[1fr_auto]">
       <select name="productId" required className="h-10 rounded-[8px] border border-slate-200 px-3 text-sm font-semibold text-slate-800">
-        <option value="">Choose product</option>
+        <option value="">Choose seed product to infer brand</option>
         {products.map((product) => (
           <option key={product.id} value={product.id}>{product.brand?.name} · {product.title}</option>
         ))}
       </select>
       <button disabled={pending} className="h-10 rounded-[8px] bg-slate-950 px-4 text-sm font-semibold text-white disabled:opacity-60">
-        {pending ? "Creating..." : "Create dummy room"}
+        {pending ? "Creating..." : "Create brand Team Room"}
       </button>
+      <p className="text-xs leading-5 text-slate-500 sm:col-span-2">Creates a brand-wide Team Room. The selected product is only used to identify the brand.</p>
       <div className="sm:col-span-2"><FormMessage state={state} /></div>
     </form>
   );
@@ -550,11 +551,66 @@ export function DummyProductMemberForm({
   return (
     <form action={formAction} className="grid gap-2 rounded-[8px] border border-slate-200 bg-slate-50 p-3 sm:grid-cols-[1fr_auto]">
       <input type="hidden" name="unlockId" value={room.id} />
-      <input type="hidden" name="productId" value={room.productId} />
+      <input type="hidden" name="productId" value={room.productId ?? ""} />
       <input type="hidden" name="brandId" value={room.brandId} />
+      <input type="hidden" name="roomScope" value={room.roomScope} />
       <input name="phone" required placeholder="Phone" className="h-9 rounded-[8px] border border-slate-200 px-2 text-sm" />
       <button disabled={pending} className="h-9 rounded-[8px] bg-slate-950 px-3 text-xs font-semibold text-white disabled:opacity-60">{pending ? "Adding..." : "Add dummy member"}</button>
       <div className="sm:col-span-2"><FormMessage state={state} /></div>
+    </form>
+  );
+}
+
+function productVariantOptions(products: AdminBrandProduct[], brandId: string) {
+  return products
+    .filter((product) => product.brandId === brandId)
+    .flatMap((product) => {
+      const variants = product.variants.length ? product.variants : [{ title: "Default", sku: "default", price: product.mrp ?? product.priceMax ?? product.priceMin ?? null, available: true, requires_shipping: true }];
+
+      return variants.map((variant) => {
+        const variantKey = variant.child_id || variant.sku || variant.title || "default";
+        const variantLabel = variant.variant_name || variant.pack_size || variant.title || "Default";
+        const price = variant.price ?? product.mrp ?? product.priceMax ?? product.priceMin;
+        return {
+          key: `${product.id}:${variantKey}`,
+          value: JSON.stringify({ productId: product.id, variantKey }),
+          label: `${product.title} · ${variantLabel}${price ? ` · ₹${Math.round(price).toLocaleString("en-IN")}` : ""}`,
+        };
+      });
+    });
+}
+
+export function AdminCartItemForm({
+  action,
+  room,
+  memberId,
+  products,
+}: {
+  action: Action;
+  room: AdminProductTeamUnlock;
+  memberId: string;
+  products: AdminBrandProduct[];
+}) {
+  const [state, formAction, pending] = useActionState(action, initialState);
+  const options = productVariantOptions(products, room.brandId);
+
+  return (
+    <form action={formAction} className="mt-3 grid gap-2 rounded-[8px] border border-lime-200 bg-white p-2">
+      <input type="hidden" name="unlockId" value={room.id} />
+      <input type="hidden" name="memberId" value={memberId} />
+      <select name="productVariant" required className="h-9 rounded-[8px] border border-slate-200 px-2 text-xs font-semibold">
+        <option value="">Choose product / variant</option>
+        {options.map((option) => (
+          <option key={option.key} value={option.value}>{option.label}</option>
+        ))}
+      </select>
+      <div className="grid grid-cols-[90px_1fr] gap-2">
+        <input name="quantity" type="number" min={1} max={4} defaultValue={1} className="h-9 rounded-[8px] border border-slate-200 px-2 text-xs font-semibold" />
+        <button disabled={pending || !options.length} className="h-9 rounded-[8px] bg-lime-600 px-3 text-xs font-semibold text-white disabled:opacity-60">
+          {pending ? "Adding..." : "Add cart item"}
+        </button>
+      </div>
+      <FormMessage state={state} />
     </form>
   );
 }
@@ -634,16 +690,16 @@ export function DummyProductOrderForm({
           <select name="unlockId" required className="h-10 w-full rounded-[8px] border border-slate-200 px-3">
             <option value="">Choose room</option>
             {rooms.map((room) => (
-              <option key={room.id} value={room.id}>{room.productTitle} · {room.shareCode}</option>
+              <option key={room.id} value={room.id}>{room.brandName} Team Room · {room.shareCode}</option>
             ))}
           </select>
         </label>
         <label className="space-y-1 text-sm font-medium text-slate-700">
-          Product ID
-          <select name="productId" required className="h-10 w-full rounded-[8px] border border-slate-200 px-3">
-            <option value="">Choose product</option>
-            {rooms.map((room) => (
-              <option key={room.id} value={room.productId}>{room.productTitle}</option>
+          Product ID optional
+          <select name="productId" className="h-10 w-full rounded-[8px] border border-slate-200 px-3">
+            <option value="">No single product</option>
+            {rooms.filter((room) => room.productId).map((room) => (
+              <option key={room.id} value={room.productId ?? ""}>{room.productTitle}</option>
             ))}
           </select>
         </label>

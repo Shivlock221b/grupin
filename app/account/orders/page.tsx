@@ -43,7 +43,6 @@ export default async function AccountOrdersPage() {
                 <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                   <div>
                     <p className="text-sm font-semibold text-cyan-700">{order.brandName}</p>
-                    <h2 className="mt-1 text-xl font-semibold text-slate-950">{order.productTitle}</h2>
                     <p className="mt-1 text-sm text-slate-500">Order ID: {order.id.slice(0, 8).toUpperCase()}</p>
                   </div>
                   <span className={`w-fit rounded-full px-3 py-1 text-xs font-bold ${order.status === "confirmed" ? "bg-lime-100 text-lime-900" : order.status === "cancelled" || order.status === "refunded" ? "bg-rose-50 text-rose-700" : "bg-cyan-50 text-cyan-800"}`}>
@@ -73,9 +72,6 @@ export default async function AccountOrdersPage() {
                       View room
                     </Link>
                   ) : null}
-                  <Link href={`/team-price/${order.brandSlug}/${order.productSlug}`} className="inline-flex h-11 items-center justify-center rounded-[8px] bg-rose-500 px-4 text-sm font-semibold text-white shadow-[0_10px_24px_rgba(244,63,94,0.18)] transition hover:bg-rose-600">
-                    View product
-                  </Link>
                 </div>
               </div>
             ))}

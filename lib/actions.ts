@@ -10,6 +10,8 @@ import { slugify } from "@/lib/utils";
 import { createAdminClient } from "@/lib/supabase-admin";
 import { clearAdminKeywordSession, createAdminKeywordSession, getAdminPortalPath } from "@/lib/admin-keyword-auth";
 import { escapeTelegramHtml, sendTelegramMessage } from "@/lib/telegram";
+import { effectiveTeamDiscountPercent, highestPricedVariant, productDisplayPrice, teamPrice } from "@/lib/product-pricing";
+import { BrandProduct, ProductVariant } from "@/lib/types";
 
 const joinSchema = z.object({
   dealId: z.string().min(1),
@@ -161,9 +163,17 @@ const dummyProductRoomSchema = z.object({
 
 const dummyProductMemberSchema = z.object({
   unlockId: z.string().min(1),
-  productId: z.string().min(1),
+  productId: z.string().optional().or(z.literal("")),
   brandId: z.string().min(1),
   phone: z.string().min(8),
+  roomScope: z.enum(["product", "brand"]).default("brand"),
+});
+
+const adminCartItemSchema = z.object({
+  unlockId: z.string().min(1),
+  memberId: z.string().min(1),
+  productVariant: z.string().min(1),
+  quantity: z.coerce.number().int().min(1).max(4),
 });
 
 const productOrderUpdateSchema = z.object({
@@ -180,7 +190,7 @@ const productOrderTrackingUpdateSchema = z.object({
 
 const dummyProductOrderSchema = z.object({
   unlockId: z.string().min(1),
-  productId: z.string().min(1),
+  productId: z.string().optional().or(z.literal("")),
   brandId: z.string().min(1),
   buyerName: z.string().min(2),
   buyerPhone: z.string().min(8),
@@ -203,6 +213,22 @@ function revalidateProductAdmin() {
   revalidatePath("/admin/product-rooms");
   revalidatePath("/admin/product-orders");
   revalidatePath("/catalog");
+}
+
+function adminVariantKey(variant: ProductVariant | null) {
+  return variant?.child_id || variant?.sku || variant?.title || "default";
+}
+
+function adminRoomDeadlinePassed(room: { expires_at?: unknown }) {
+  return room.expires_at ? new Date(String(room.expires_at)).getTime() <= Date.now() : false;
+}
+
+function adminRoomClosed(room: { status?: unknown; expires_at?: unknown }) {
+  return ["completed", "cancelled", "expired"].includes(String(room.status ?? "")) || adminRoomDeadlinePassed(room);
+}
+
+function adminVariantLabel(variant: ProductVariant | null) {
+  return variant?.variant_name || variant?.pack_size || variant?.title || "Default";
 }
 
 const platformInventorySchema = z.object({
@@ -1181,11 +1207,12 @@ export async function createDummyProductRoomAction(_state: ActionState, formData
 
   const shareCode = createAdminShareCode();
   const { error } = await supabase.from("product_team_unlocks").insert({
-    product_id: parsed.data.productId,
+    product_id: null,
     brand_id: product.brand_id,
     share_code: shareCode,
     threshold: 3,
     discount_percent: 25,
+    room_scope: "brand",
     expires_at: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
   });
 
@@ -1193,7 +1220,7 @@ export async function createDummyProductRoomAction(_state: ActionState, formData
 
   revalidatePath("/admin/product-rooms");
   revalidatePath("/admin/dashboard");
-  return { success: true, message: `Product room ${shareCode} created.` };
+  return { success: true, message: `Brand Team Room ${shareCode} created.` };
 }
 
 export async function addDummyProductTeamMemberAction(_state: ActionState, formData: FormData): Promise<ActionState> {
@@ -1204,39 +1231,186 @@ export async function addDummyProductTeamMemberAction(_state: ActionState, formD
   if (!parsed.success) return { success: false, message: parsed.error.issues[0]?.message ?? "Check member details." };
   if (!supabase) return { success: false, message: "Supabase admin client is not configured." };
 
+  const { data: unlock, error: unlockError } = await supabase
+    .from("product_team_unlocks")
+    .select("id, status, expires_at")
+    .eq("id", parsed.data.unlockId)
+    .maybeSingle();
+
+  if (unlockError) return { success: false, message: unlockError.message };
+  if (!unlock) return { success: false, message: "Team Room not found." };
+  if (adminRoomClosed(unlock)) {
+    await syncProductTeamUnlockOrderStatus(parsed.data.unlockId);
+    return { success: false, message: "This Team Room is closed." };
+  }
+
   const { error } = await supabase.from("product_team_unlock_members").insert({
     unlock_id: parsed.data.unlockId,
-    product_id: parsed.data.productId,
+    product_id: parsed.data.productId || null,
     brand_id: parsed.data.brandId,
     phone: parsed.data.phone.trim(),
     role: "member",
+    room_scope: parsed.data.roomScope,
   });
 
   if (error) return { success: false, message: error.message };
 
-  const { count } = await supabase
-    .from("product_team_unlock_members")
-    .select("id", { count: "exact", head: true })
-    .eq("unlock_id", parsed.data.unlockId);
-
-  const { data: room } = await supabase
-    .from("product_team_unlocks")
-    .select("threshold")
-    .eq("id", parsed.data.unlockId)
-    .maybeSingle();
-
-  const currentCount = count ?? 0;
-  await supabase
-    .from("product_team_unlocks")
-    .update({
-      current_count: currentCount,
-      status: currentCount >= Number(room?.threshold ?? 3) ? "unlocked" : "active",
-      updated_at: new Date().toISOString(),
-    })
-    .eq("id", parsed.data.unlockId);
+  await syncProductTeamUnlockOrderStatus(parsed.data.unlockId);
 
   revalidatePath("/admin/product-rooms");
-  return { success: true, message: "Dummy member added." };
+  return { success: true, message: "Dummy member added. Add cart items through the user flow to increase cart readiness." };
+}
+
+export async function addAdminProductTeamCartItemAction(_state: ActionState, formData: FormData): Promise<ActionState> {
+  await requireAdmin();
+  const parsed = adminCartItemSchema.safeParse(Object.fromEntries(formData));
+  const supabase = createAdminClient();
+
+  if (!parsed.success) return { success: false, message: parsed.error.issues[0]?.message ?? "Check cart item details." };
+  if (!supabase) return { success: false, message: "Supabase admin client is not configured." };
+
+  let productId = "";
+  let variantKey = "default";
+
+  try {
+    const parsedValue = JSON.parse(parsed.data.productVariant) as { productId?: string; variantKey?: string };
+    productId = String(parsedValue.productId ?? "");
+    variantKey = String(parsedValue.variantKey ?? "default");
+  } catch {
+    return { success: false, message: "Choose a product variant." };
+  }
+
+  if (!productId) return { success: false, message: "Choose a product." };
+
+  const [{ data: unlock, error: unlockError }, { data: member, error: memberError }, { data: productRow, error: productError }] = await Promise.all([
+    supabase
+      .from("product_team_unlocks")
+      .select("id, brand_id, discount_percent, status, current_count, threshold, expires_at")
+      .eq("id", parsed.data.unlockId)
+      .maybeSingle(),
+    supabase
+      .from("product_team_unlock_members")
+      .select("id, unlock_id, brand_id, cart_status")
+      .eq("id", parsed.data.memberId)
+      .eq("unlock_id", parsed.data.unlockId)
+      .maybeSingle(),
+    supabase
+      .from("products")
+      .select("id, brand_id, title, slug, vendor, primary_image, image_urls, variants, tags, product_types, price_min, price_max, source_url, mrp, sale_price, source_discount_percent, brands(slug)")
+      .eq("id", productId)
+      .maybeSingle(),
+  ]);
+
+  if (unlockError) return { success: false, message: unlockError.message };
+  if (memberError) return { success: false, message: memberError.message };
+  if (productError) return { success: false, message: productError.message };
+  if (!unlock) return { success: false, message: "Team Room not found." };
+  if (!member) return { success: false, message: "Member not found in this Team Room." };
+  if (!productRow) return { success: false, message: "Product not found." };
+  if (String(unlock.brand_id) !== String(productRow.brand_id) || String(member.brand_id) !== String(unlock.brand_id)) {
+    return { success: false, message: "Product and member must belong to this Team Room brand." };
+  }
+  if (unlock.status === "completed" || unlock.status === "cancelled" || unlock.status === "expired") {
+    return { success: false, message: "This Team Room is closed." };
+  }
+  if (adminRoomDeadlinePassed(unlock)) {
+    await syncProductTeamUnlockOrderStatus(parsed.data.unlockId);
+    return { success: false, message: "This Team Room is closed." };
+  }
+  if (member.cart_status === "checked_out") {
+    return { success: false, message: "This member has already checked out." };
+  }
+
+  const { count: existingMemberCartCount, error: existingMemberCartCountError } = await supabase
+    .from("product_team_cart_items")
+    .select("id", { count: "exact", head: true })
+    .eq("member_id", parsed.data.memberId);
+
+  if (existingMemberCartCountError) return { success: false, message: existingMemberCartCountError.message };
+  if (!existingMemberCartCount && Number(unlock.current_count ?? 0) >= Number(unlock.threshold ?? 3)) {
+    return { success: false, message: "This Team Room already has enough eligible carts. This member cannot add a new cart." };
+  }
+
+  const brandRelation = productRow.brands;
+  const brandRow = Array.isArray(brandRelation) ? brandRelation[0] : brandRelation;
+  const product = {
+    id: String(productRow.id),
+    brandId: String(productRow.brand_id),
+    brand: brandRow && typeof brandRow === "object" ? { id: String(productRow.brand_id), name: "", slug: String((brandRow as { slug?: unknown }).slug ?? "") } : null,
+    title: String(productRow.title ?? ""),
+    slug: String(productRow.slug ?? ""),
+    vendor: (productRow.vendor as string | null | undefined) ?? null,
+    primaryImage: (productRow.primary_image as string | null | undefined) ?? null,
+    imageUrls: Array.isArray(productRow.image_urls) ? productRow.image_urls as string[] : [],
+    variants: Array.isArray(productRow.variants) ? productRow.variants as ProductVariant[] : [],
+    tags: Array.isArray(productRow.tags) ? productRow.tags as string[] : [],
+    productTypes: Array.isArray(productRow.product_types) ? productRow.product_types as string[] : [],
+    priceMin: productRow.price_min === null || productRow.price_min === undefined ? null : Number(productRow.price_min),
+    priceMax: productRow.price_max === null || productRow.price_max === undefined ? null : Number(productRow.price_max),
+    sourceProductIds: [],
+    sourceHandles: [],
+    sourceFiles: [],
+    productUrl: (productRow.source_url as string | null | undefined) ?? null,
+    mrp: productRow.mrp === null || productRow.mrp === undefined ? null : Number(productRow.mrp),
+    salePrice: productRow.sale_price === null || productRow.sale_price === undefined ? null : Number(productRow.sale_price),
+    sourceDiscountPercent: productRow.source_discount_percent === null || productRow.source_discount_percent === undefined ? null : Number(productRow.source_discount_percent),
+  } satisfies BrandProduct;
+
+  const selectedVariant = product.variants.find((variant) => adminVariantKey(variant) === variantKey) ?? highestPricedVariant(product);
+  const finalVariantKey = adminVariantKey(selectedVariant);
+  const mrp = selectedVariant?.price ?? productDisplayPrice(product) ?? 0;
+  const discount = Math.max(Number(unlock.discount_percent ?? 0), effectiveTeamDiscountPercent(product));
+  const team = teamPrice(mrp, discount) ?? mrp;
+  const imageUrl = selectedVariant?.image_url ?? product.primaryImage ?? product.imageUrls[0] ?? null;
+
+  const itemPayload = {
+    unlock_id: parsed.data.unlockId,
+    member_id: parsed.data.memberId,
+    product_id: product.id,
+    brand_id: product.brandId,
+    selected_variant: selectedVariant ?? null,
+    variant_key: finalVariantKey,
+    quantity: parsed.data.quantity,
+    mrp_snapshot: Math.round(mrp),
+    team_price_snapshot: Math.round(team),
+    discount_percent_snapshot: discount,
+    product_snapshot: {
+      title: product.title,
+      slug: product.slug,
+      brandSlug: product.brand?.slug,
+      imageUrl,
+      productUrl: product.productUrl,
+      variantLabel: adminVariantLabel(selectedVariant),
+    },
+    updated_at: new Date().toISOString(),
+  };
+
+  const { data: existingItem } = await supabase
+    .from("product_team_cart_items")
+    .select("id")
+    .eq("member_id", parsed.data.memberId)
+    .eq("product_id", product.id)
+    .eq("variant_key", finalVariantKey)
+    .maybeSingle();
+
+  const { error } = existingItem?.id
+    ? await supabase.from("product_team_cart_items").update(itemPayload).eq("id", existingItem.id)
+    : await supabase.from("product_team_cart_items").insert(itemPayload);
+
+  if (error) return { success: false, message: error.message };
+
+  const { error: memberUpdateError } = await supabase
+    .from("product_team_unlock_members")
+    .update({ cart_status: "active" })
+    .eq("id", parsed.data.memberId);
+
+  if (memberUpdateError) return { success: false, message: memberUpdateError.message };
+
+  await syncProductTeamUnlockOrderStatus(parsed.data.unlockId);
+
+  revalidatePath("/admin/product-rooms");
+  revalidatePath("/admin/dashboard");
+  return { success: true, message: "Cart item added." };
 }
 
 export async function deleteProductTeamMemberAction(formData: FormData) {
@@ -1247,19 +1421,30 @@ export async function deleteProductTeamMemberAction(formData: FormData) {
 
   if (!supabase || !memberId) return;
 
+  if (unlockId) {
+    const [{ data: unlock }, { count: memberCartCount }] = await Promise.all([
+      supabase
+        .from("product_team_unlocks")
+        .select("id, status, current_count, threshold, expires_at")
+        .eq("id", unlockId)
+        .maybeSingle(),
+      supabase
+        .from("product_team_cart_items")
+        .select("id", { count: "exact", head: true })
+        .eq("member_id", memberId),
+    ]);
+
+    const roomUnlocked = Boolean(unlock && !adminRoomClosed(unlock) && Number(unlock.current_count ?? 0) >= Number(unlock.threshold ?? 3));
+
+    if (roomUnlocked && Number(memberCartCount ?? 0) > 0) {
+      return;
+    }
+  }
+
   await supabase.from("product_team_unlock_members").delete().eq("id", memberId);
 
   if (unlockId) {
-    const { count } = await supabase
-      .from("product_team_unlock_members")
-      .select("id", { count: "exact", head: true })
-      .eq("unlock_id", unlockId);
-
-    const currentCount = count ?? 0;
-    await supabase
-      .from("product_team_unlocks")
-      .update({ current_count: currentCount, updated_at: new Date().toISOString() })
-      .eq("id", unlockId);
+    await syncProductTeamUnlockOrderStatus(unlockId);
   }
 
   revalidatePath("/admin/product-rooms");
@@ -1274,21 +1459,32 @@ export async function updateProductTeamRoomAction(_state: ActionState, formData:
   if (!parsed.success) return { success: false, message: parsed.error.issues[0]?.message ?? "Check room controls." };
   if (!supabase) return { success: false, message: "Supabase admin client is not configured." };
 
+  const expiresAt = parsed.data.status === "expired"
+    ? new Date().toISOString()
+    : parsed.data.expiresAt
+      ? new Date(parsed.data.expiresAt).toISOString()
+      : undefined;
+  const closedAt = ["expired", "completed", "cancelled"].includes(parsed.data.status) ? new Date().toISOString() : null;
+
   const { error } = await supabase
     .from("product_team_unlocks")
     .update({
       status: parsed.data.status,
       threshold: parsed.data.threshold,
       current_count: parsed.data.currentCount,
-      expires_at: parsed.data.expiresAt ? new Date(parsed.data.expiresAt).toISOString() : undefined,
+      expires_at: expiresAt,
+      closed_at: closedAt,
       updated_at: new Date().toISOString(),
     })
     .eq("id", parsed.data.unlockId);
 
   if (error) return { success: false, message: error.message };
+  if (parsed.data.status === "expired") {
+    await syncProductTeamUnlockOrderStatus(parsed.data.unlockId);
+  }
   revalidatePath("/admin/product-rooms");
   revalidatePath("/admin/dashboard");
-  return { success: true, message: "Product room updated." };
+  return { success: true, message: "Team Room updated." };
 }
 
 export async function deleteProductTeamRoomAction(formData: FormData) {
@@ -1386,10 +1582,33 @@ export async function createDummyProductOrderAction(_state: ActionState, formDat
   if (!parsed.success) return { success: false, message: parsed.error.issues[0]?.message ?? "Check dummy order details." };
   if (!supabase) return { success: false, message: "Supabase admin client is not configured." };
 
+  const { data: unlock, error: unlockError } = await supabase
+    .from("product_team_unlocks")
+    .select("id, status, current_count, threshold, expires_at")
+    .eq("id", parsed.data.unlockId)
+    .maybeSingle();
+
+  if (unlockError) return { success: false, message: unlockError.message };
+  if (!unlock) return { success: false, message: "Team Room not found." };
+  if (adminRoomClosed(unlock) || Number(unlock.current_count ?? 0) < Number(unlock.threshold ?? 3)) {
+    await syncProductTeamUnlockOrderStatus(parsed.data.unlockId);
+    return { success: false, message: "This Team Room is not open for checkout." };
+  }
+
+  const { data: members, error: membersError } = await supabase
+    .from("product_team_unlock_members")
+    .select("id")
+    .eq("unlock_id", parsed.data.unlockId)
+    .limit(1);
+
+  if (membersError) return { success: false, message: membersError.message };
+  const cartMemberId = members?.[0]?.id ?? null;
+
   const { error } = await supabase.from("product_team_orders").insert({
     unlock_id: parsed.data.unlockId,
-    product_id: parsed.data.productId,
+    product_id: parsed.data.productId || null,
     brand_id: parsed.data.brandId,
+    cart_member_id: cartMemberId,
     buyer_name: parsed.data.buyerName.trim(),
     buyer_phone: parsed.data.buyerPhone.trim(),
     buyer_email: parsed.data.buyerEmail || null,

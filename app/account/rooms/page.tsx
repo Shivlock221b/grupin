@@ -37,15 +37,14 @@ export default async function AccountRoomsPage() {
         {rooms.length ? (
           <div className="grid gap-4 md:grid-cols-2">
             {rooms.map((room) => {
-              const unlocked = room.status === "unlocked" || room.currentCount >= room.threshold;
-              const expired = room.status === "expired" || (new Date(room.expiresAt).getTime() <= Date.now() && !unlocked);
+              const expired = room.status === "expired" || new Date(room.expiresAt).getTime() <= Date.now();
+              const unlocked = !expired && (room.status === "unlocked" || room.currentCount >= room.threshold);
 
               return (
                 <div key={room.id} className="rounded-[8px] border border-slate-200 bg-white p-5 shadow-[0_14px_40px_rgba(15,23,42,0.06)]">
                   <div className="flex items-start justify-between gap-3">
                     <div>
                       <p className="text-sm font-semibold text-cyan-700">{room.brandName}</p>
-                      <h2 className="mt-1 text-xl font-semibold text-slate-950">{room.productTitle}</h2>
                     </div>
                     <span className={`rounded-full px-3 py-1 text-xs font-bold ${unlocked ? "bg-lime-100 text-lime-900" : expired ? "bg-rose-50 text-rose-700" : "bg-cyan-50 text-cyan-800"}`}>
                       {statusLabel(unlocked ? "unlocked" : room.status)}
@@ -65,20 +64,9 @@ export default async function AccountRoomsPage() {
                       <p className="mt-1 font-semibold text-slate-950">{room.shareCode}</p>
                     </div>
                   </div>
-                  <div className="mt-5 grid gap-2 sm:grid-cols-2">
-                    <Link href={`/team-room/${room.shareCode}`} className="inline-flex h-11 items-center justify-center rounded-[8px] bg-rose-500 px-4 text-sm font-semibold text-white transition hover:bg-rose-600">
-                      View room
-                    </Link>
-                    {unlocked ? (
-                      <Link href={`/team-checkout/${room.shareCode}`} className="inline-flex h-11 items-center justify-center rounded-[8px] border border-slate-300 bg-white px-4 text-sm font-semibold text-slate-950">
-                        Checkout
-                      </Link>
-                    ) : (
-                      <Link href={`/team-price/${room.brandSlug}/${room.productSlug}`} className="inline-flex h-11 items-center justify-center rounded-[8px] border border-slate-300 bg-white px-4 text-sm font-semibold text-slate-950">
-                        Product
-                      </Link>
-                    )}
-                  </div>
+                  <Link href={`/team-room/${room.shareCode}`} className="inline-flex h-11 items-center justify-center rounded-[8px] bg-rose-500 px-4 text-sm font-semibold text-white transition hover:bg-rose-600">
+                    View room
+                  </Link>
                 </div>
               );
             })}

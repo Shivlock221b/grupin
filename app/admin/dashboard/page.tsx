@@ -53,8 +53,8 @@ export default async function AdminDashboardPage() {
           ["Deals", deals.length],
           ["Brands", brands.length],
           ["Products", products.length],
-          ["Product rooms", productRooms.length],
-          ["Product orders", productOrders.length],
+          ["Team Rooms", productRooms.length],
+          ["Team Room orders", productOrders.length],
         ].map(([label, value]) => (
           <div key={label} className="rounded-[8px] border border-slate-200 bg-white p-5">
             <p className="text-sm font-medium text-slate-500">{label}</p>
@@ -98,11 +98,11 @@ export default async function AdminDashboardPage() {
           <p className="mt-1 text-sm text-slate-500">Create, edit, hide, price, enrich, and delete products.</p>
         </Link>
         <Link href="/admin/product-rooms" className="rounded-[8px] border border-slate-200 bg-white p-5 transition hover:border-slate-400">
-          <p className="text-xl font-semibold text-slate-950">Product rooms</p>
-          <p className="mt-1 text-sm text-slate-500">Control room status, expiry, counts, and dummy members.</p>
+          <p className="text-xl font-semibold text-slate-950">Team Rooms</p>
+          <p className="mt-1 text-sm text-slate-500">Control room status, expiry, member carts, and dummy members.</p>
         </Link>
         <Link href="/admin/product-orders" className="rounded-[8px] border border-slate-200 bg-white p-5 transition hover:border-slate-400">
-          <p className="text-xl font-semibold text-slate-950">Product orders</p>
+          <p className="text-xl font-semibold text-slate-950">Team Room orders</p>
           <p className="mt-1 text-sm text-slate-500">Manage checkout holds, confirmations, refunds, and cancellations.</p>
         </Link>
       </section>

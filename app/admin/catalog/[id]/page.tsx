@@ -60,7 +60,7 @@ export default async function AdminProductDetailPage({ params }: { params: Promi
           {rooms.slice(0, 8).map((room) => (
             <div key={room.id} className="rounded-[8px] bg-slate-50 p-3 text-sm">
               <p className="font-semibold">{room.shareCode} · {room.status}</p>
-              <p className="text-slate-500">{room.currentCount}/{room.threshold} joined · {room.ordersCount} orders</p>
+              <p className="text-slate-500">{room.currentCount}/{room.threshold} member carts ready · {room.ordersCount} orders</p>
             </div>
           ))}
         </div>

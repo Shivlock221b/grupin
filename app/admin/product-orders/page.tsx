@@ -17,7 +17,7 @@ export default async function AdminProductOrdersPage() {
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div>
           <p className="text-xs font-semibold uppercase tracking-[0.3em] text-[var(--clay)]">Admin</p>
-          <h1 className="mt-2 text-4xl font-semibold tracking-tight text-[var(--forest)]">Product orders</h1>
+          <h1 className="mt-2 text-4xl font-semibold tracking-tight text-[var(--forest)]">Team Room orders</h1>
         </div>
         <Link href="/admin/catalog" className="rounded-[8px] border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-900">Catalog</Link>
       </div>
@@ -29,7 +29,7 @@ export default async function AdminProductOrdersPage() {
           <thead className="bg-slate-50 text-xs uppercase tracking-[0.16em] text-slate-500">
             <tr>
               <th className="px-4 py-3">Buyer</th>
-              <th className="px-4 py-3">Product</th>
+              <th className="px-4 py-3">Items</th>
               <th className="px-4 py-3">Order</th>
               <th className="px-4 py-3">Controls</th>
               <th className="px-4 py-3">Delete</th>
@@ -44,9 +44,23 @@ export default async function AdminProductOrdersPage() {
                   <p className="text-slate-500">{order.buyerPhone || order.profilePhone}</p>
                 </td>
                 <td className="px-4 py-4">
-                  <p className="font-semibold text-slate-900">{order.productTitle}</p>
-                  <p className="text-slate-500">{order.brandName} · {order.shareCode}</p>
-                  <p className="text-xs text-slate-400">{order.selectedVariant?.variant_name ?? order.selectedVariant?.pack_size ?? "No variant"}</p>
+                  <p className="font-semibold text-slate-900">{order.brandName} Team Room</p>
+                  <p className="text-slate-500">{order.shareCode}</p>
+                  {order.items?.length ? (
+                    <div className="mt-2 space-y-1">
+                      {order.items.map((item) => (
+                        <div key={item.id} className="rounded-[8px] bg-slate-50 px-2 py-1 text-xs">
+                          <p className="font-semibold text-slate-800">{item.productSnapshot.title ?? "Product"}</p>
+                          <p className="text-slate-500">Qty {item.quantity} · {item.productSnapshot.variantLabel ?? item.variantKey}</p>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <>
+                      <p className="text-xs text-slate-400">{order.productTitle ?? "No item snapshot"}</p>
+                      <p className="text-xs text-slate-400">{order.selectedVariant?.variant_name ?? order.selectedVariant?.pack_size ?? "No variant"}</p>
+                    </>
+                  )}
                 </td>
                 <td className="px-4 py-4">
                   <p className="font-semibold text-slate-900">{formatMoney(order.amountPaid)}</p>

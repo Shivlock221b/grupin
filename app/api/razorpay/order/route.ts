@@ -1,38 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getCurrentAccountProfile } from "@/lib/account-auth";
 import { createAdminClient } from "@/lib/supabase-admin";
-import { getCachedBrandProductById, getGroupDealById, getPlatformCouponInventory, getPrivateUnlockDealConfigByDealId, getProductTeamUnlockByCode, hasRecentPrivateUnlockJoin, listProductTeamUnlockMembers } from "@/lib/data";
+import { getGroupDealById, getPlatformCouponInventory, getPrivateUnlockDealConfigByDealId, getProductTeamUnlockByCode, hasRecentPrivateUnlockJoin, listProductTeamCartItems, listProductTeamUnlockMembers, syncProductTeamUnlockOrderStatus } from "@/lib/data";
 import { phoneLookupVariants } from "@/lib/otp";
-import { effectiveTeamDiscountPercent, teamPrice } from "@/lib/product-pricing";
-import { ProductVariant } from "@/lib/types";
-
-function variantKey(variant: ProductVariant) {
-  return String(variant.child_id ?? variant.sku ?? variant.title);
-}
-
-function selectedCheckoutVariant(product: Awaited<ReturnType<typeof getCachedBrandProductById>>, selectedVariantKey: unknown) {
-  if (!product) {
-    return null;
-  }
-
-  if (typeof selectedVariantKey === "string" && selectedVariantKey.trim()) {
-    const selected = product.variants.find((variant) => variantKey(variant) === selectedVariantKey);
-
-    if (selected) {
-      return selected;
-    }
-  }
-
-  return product.variants.reduce<ProductVariant | null>((highest, variant) => {
-    if (variant.price === null || variant.price === undefined) return highest;
-    if (!highest || highest.price === null || highest.price === undefined || variant.price > highest.price) return variant;
-    return highest;
-  }, null);
-}
 
 export async function POST(request: NextRequest) {
   try {
-    const { dealId, privateUnlock, purpose, unlockedCouponId, phone, code, selectedVariantKey } = await request.json();
+    const { dealId, privateUnlock, purpose, unlockedCouponId, phone, code } = await request.json();
 
     if (purpose === "coupon_claim") {
       if (typeof unlockedCouponId !== "string") {
@@ -126,23 +100,37 @@ export async function POST(request: NextRequest) {
 
       const unlock = await getProductTeamUnlockByCode(code);
 
-      if (!unlock || unlock.currentCount < unlock.threshold) {
+      if (!unlock) {
         return NextResponse.json({ message: "This room is not unlocked yet." }, { status: 409 });
       }
 
-      const [product, members] = await Promise.all([
-        getCachedBrandProductById(unlock.productId),
-        listProductTeamUnlockMembers(unlock.id),
-      ]);
+      const syncedUnlock = await syncProductTeamUnlockOrderStatus(unlock.id);
+      const effectiveUnlock = syncedUnlock ?? unlock;
 
-      if (!product) {
-        return NextResponse.json({ message: "Product not found." }, { status: 404 });
+      if (["completed", "cancelled", "expired"].includes(effectiveUnlock.status) || new Date(effectiveUnlock.expiresAt).getTime() <= Date.now()) {
+        return NextResponse.json({ message: "This Team Room checkout deadline has passed." }, { status: 410 });
       }
 
-      const isMember = members.some((member) => member.profileId === profile.id || phoneLookupVariants(profile.phone).includes(member.phone));
+      if (effectiveUnlock.currentCount < effectiveUnlock.threshold) {
+        return NextResponse.json({ message: "This room is not unlocked yet." }, { status: 409 });
+      }
+
+      const [members, cartItems] = await Promise.all([
+        listProductTeamUnlockMembers(effectiveUnlock.id),
+        listProductTeamCartItems(effectiveUnlock.id),
+      ]);
+
+      const member = members.find((entry) => entry.profileId === profile.id || phoneLookupVariants(profile.phone).includes(entry.phone));
+      const isMember = Boolean(member);
 
       if (!isMember) {
-        return NextResponse.json({ message: "Join this room before checkout." }, { status: 403 });
+        return NextResponse.json({ message: "Join this Team Room before checkout." }, { status: 403 });
+      }
+
+      const memberCartItems = cartItems.filter((item) => item.memberId === member?.id);
+
+      if (!memberCartItems.length) {
+        return NextResponse.json({ message: "Add at least one item to cart before checkout." }, { status: 409 });
       }
 
       const supabase = createAdminClient();
@@ -154,7 +142,7 @@ export async function POST(request: NextRequest) {
       const { data: existingOrder, error: existingOrderError } = await supabase
         .from("product_team_orders")
         .select("id")
-        .eq("unlock_id", unlock.id)
+        .eq("unlock_id", effectiveUnlock.id)
         .eq("profile_id", profile.id)
         .maybeSingle();
 
@@ -163,29 +151,27 @@ export async function POST(request: NextRequest) {
       }
 
       if (existingOrder) {
-        return NextResponse.json({ message: "You have already checked out for this room." }, { status: 409 });
+        return NextResponse.json({ message: "You have already checked out for this Team Room." }, { status: 409 });
       }
 
       const { count: checkoutCount, error: checkoutCountError } = await supabase
         .from("product_team_orders")
         .select("id", { count: "exact", head: true })
-        .eq("unlock_id", unlock.id)
+        .eq("unlock_id", effectiveUnlock.id)
         .in("status", ["hold", "confirmed"]);
 
       if (checkoutCountError) {
         throw checkoutCountError;
       }
 
-      if (checkoutCount !== null && checkoutCount >= unlock.currentCount) {
-        return NextResponse.json({ message: "This room is closed. All joined users have checked out." }, { status: 409 });
+      if (checkoutCount !== null && checkoutCount >= effectiveUnlock.currentCount) {
+        return NextResponse.json({ message: "This Team Room is closed. All eligible carts have checked out." }, { status: 409 });
       }
 
-      const variant = selectedCheckoutVariant(product, selectedVariantKey);
-      const price = variant?.price ?? product.priceMax ?? product.priceMin;
-      const payable = teamPrice(price, Math.max(unlock.discountPercent, effectiveTeamDiscountPercent(product)));
+      const payable = memberCartItems.reduce((total, item) => total + item.teamPriceSnapshot * item.quantity, 0);
 
       if (!payable || payable <= 0) {
-        return NextResponse.json({ message: "Product price is not available." }, { status: 409 });
+        return NextResponse.json({ message: "Cart price is not available." }, { status: 409 });
       }
 
       const amount = payable * 100;
@@ -212,12 +198,11 @@ export async function POST(request: NextRequest) {
         body: JSON.stringify({
           amount,
           currency: "INR",
-          receipt: `product_${unlock.shareCode}_${Date.now()}`.slice(0, 40),
+          receipt: `product_${effectiveUnlock.shareCode}_${Date.now()}`.slice(0, 40),
           notes: {
             profileId: profile.id,
-            unlockId: unlock.id,
-            productId: product.id,
-            selectedVariantKey: typeof selectedVariantKey === "string" ? selectedVariantKey : "",
+            unlockId: effectiveUnlock.id,
+            cartMemberId: member?.id,
           },
         }),
       });

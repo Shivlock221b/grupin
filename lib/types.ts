@@ -171,7 +171,7 @@ export type BrandProduct = {
 
 export type ProductTeamUnlock = {
   id: string;
-  productId: string;
+  productId?: string | null;
   brandId: string;
   ownerProfileId?: string | null;
   shareCode: string;
@@ -179,30 +179,62 @@ export type ProductTeamUnlock = {
   discountPercent: number;
   selectedVariant?: ProductVariant | null;
   currentCount: number;
+  memberCount: number;
+  roomScope: "product" | "brand";
   status: "active" | "unlocked" | "expired" | "completed" | "cancelled";
   expiresAt: string;
+  closedAt?: string | null;
   createdAt?: string;
 };
 
 export type ProductTeamUnlockMember = {
   id: string;
   unlockId: string;
-  productId: string;
+  productId?: string | null;
   brandId: string;
   profileId?: string | null;
   selectedVariant?: ProductVariant | null;
   phone: string;
   role: "owner" | "member";
+  cartStatus?: "empty" | "active" | "checked_out" | "left";
+  roomScope?: "product" | "brand";
+  cartCheckedOutAt?: string | null;
   createdAt: string;
+};
+
+export type ProductTeamCartItem = {
+  id: string;
+  unlockId: string;
+  memberId: string;
+  productId: string;
+  brandId: string;
+  selectedVariant?: ProductVariant | null;
+  variantKey: string;
+  quantity: number;
+  mrpSnapshot: number;
+  teamPriceSnapshot: number;
+  discountPercentSnapshot: number;
+  productSnapshot: {
+    title?: string;
+    slug?: string;
+    brandSlug?: string;
+    imageUrl?: string | null;
+    productUrl?: string | null;
+    variantLabel?: string;
+  };
+  createdAt?: string;
+  updatedAt?: string;
 };
 
 export type ProductTeamOrder = {
   id: string;
   unlockId: string;
-  productId: string;
+  productId?: string | null;
   brandId: string;
   profileId?: string | null;
+  cartMemberId?: string | null;
   selectedVariant?: ProductVariant | null;
+  items?: ProductTeamCartItem[];
   buyerName: string;
   buyerEmail?: string | null;
   buyerPhone: string;
@@ -268,6 +300,7 @@ export type AdminProductTeamUnlock = ProductTeamUnlock & {
   productSlug?: string | null;
   brandName?: string | null;
   members: ProductTeamUnlockMember[];
+  cartItems: ProductTeamCartItem[];
   ordersCount: number;
   ordersRevenue: number;
 };

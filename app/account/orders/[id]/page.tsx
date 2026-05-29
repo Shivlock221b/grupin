@@ -30,12 +30,6 @@ function addressText(address: Record<string, unknown>) {
   return parts.length ? parts.join(", ") : "No address saved";
 }
 
-function variantText(variant: unknown) {
-  if (!variant || typeof variant !== "object") return "Default selection";
-  const row = variant as Record<string, unknown>;
-  return String(row.variant_name || row.pack_size || row.title || "Selected variant");
-}
-
 function trackingStatusLabel(status: string) {
   return status.replaceAll("_", " ");
 }
@@ -55,14 +49,17 @@ export default async function OrderDetailsPage({ params }: OrderDetailsPageProps
 
   const latestUpdate = order.trackingUpdates?.[0] ?? null;
   const visibleStatus = latestUpdate?.status ?? order.status;
+  const mrpTotal = order.items?.reduce((total, item) => total + item.mrpSnapshot * item.quantity, 0) ?? 0;
+  const teamTotal = order.items?.reduce((total, item) => total + item.teamPriceSnapshot * item.quantity, 0) ?? 0;
+  const savings = Math.max(0, mrpTotal - teamTotal);
 
   return (
-    <main className="min-h-screen bg-[#f8faf8] px-4 py-8">
+    <main className="min-h-screen bg-[#fbfcf8] px-4 py-6 sm:py-8">
       <div className="mx-auto max-w-4xl">
         <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
           <div>
-            <p className="text-sm font-bold uppercase tracking-[0.16em] text-emerald-700">Order details</p>
-            <h1 className="mt-1 text-4xl font-semibold tracking-tight text-slate-950">{order.productTitle}</h1>
+            <p className="text-sm font-semibold uppercase tracking-[0.14em] text-emerald-700">Order details</p>
+            <h1 className="mt-1 text-3xl font-semibold tracking-tight text-slate-950 sm:text-4xl">Order {order.id.slice(0, 8).toUpperCase()}</h1>
             <p className="mt-2 text-slate-600">Order ID: {order.id.slice(0, 8).toUpperCase()}</p>
           </div>
           <span className={`w-fit rounded-full px-3 py-1 text-xs font-bold ${statusClass(visibleStatus)}`}>
@@ -71,22 +68,22 @@ export default async function OrderDetailsPage({ params }: OrderDetailsPageProps
         </div>
 
         <div className="grid gap-4 lg:grid-cols-[1fr_320px]">
-          <section className="rounded-[8px] border border-slate-200 bg-white p-5 shadow-[0_14px_40px_rgba(15,23,42,0.06)]">
-            <h2 className="text-xl font-semibold text-slate-950">Tracking</h2>
+          <section className="rounded-[18px] border border-slate-200 bg-white p-5 shadow-[0_18px_60px_rgba(20,33,29,0.08)]">
+            <div className="rounded-[16px] bg-lime-50 p-4">
+              <p className="text-sm font-semibold uppercase tracking-[0.14em] text-lime-800">Order status</p>
+              <h2 className="mt-1 text-2xl font-semibold capitalize tracking-tight text-slate-950 sm:text-3xl">{latestUpdate ? trackingStatusLabel(visibleStatus) : statusLabel(visibleStatus)}</h2>
+              <p className="mt-2 text-sm font-semibold leading-6 text-lime-950">
+                {latestUpdate?.remark ?? (order.status === "confirmed"
+                  ? "Everyone in your Team Room has checked out. Your order is confirmed."
+                  : "Your payment is captured. The order will confirm after all eligible carts checkout.")}
+              </p>
+            </div>
             <div className="mt-4 grid gap-3">
-              <div className="rounded-[8px] bg-lime-50 p-4">
-                <p className="text-sm font-bold capitalize text-lime-900">{latestUpdate ? trackingStatusLabel(visibleStatus) : order.status === "confirmed" ? "Order confirmed" : "Payment received, order on hold"}</p>
-                <p className="mt-1 text-sm leading-6 text-lime-950">
-                  {latestUpdate?.remark ?? (order.status === "confirmed"
-                    ? "Everyone in your room has checked out. The order is ready for admin processing."
-                    : "Your payment is captured. The order will confirm after all joined room members checkout.")}
-                </p>
-              </div>
-              <div className="rounded-[8px] bg-slate-50 p-4">
+              <div className="rounded-[12px] bg-slate-50 p-4">
                 <p className="text-xs font-semibold text-slate-500">Room progress</p>
-                <p className="mt-1 font-semibold text-slate-950">{order.roomCurrentCount ?? "-"} / {order.roomThreshold ?? "-"} joined · {order.roomStatus ?? "room"}</p>
+                <p className="mt-1 font-semibold text-slate-950">{order.roomCurrentCount ?? "-"} / {order.roomThreshold ?? "-"} member carts ready · {order.roomStatus ?? "room"}</p>
               </div>
-              <div className="rounded-[8px] bg-slate-50 p-4">
+              <div className="rounded-[12px] bg-slate-50 p-4">
                 <p className="text-xs font-semibold text-slate-500">Delivery address</p>
                 <p className="mt-1 font-semibold text-slate-950">{addressText(order.deliveryAddress)}</p>
               </div>
@@ -98,8 +95,8 @@ export default async function OrderDetailsPage({ params }: OrderDetailsPageProps
                 {order.trackingUpdates?.length ? (
                   order.trackingUpdates.map((update) => (
                     <div key={update.id} className="flex gap-3">
-                      <div className="mt-1 h-3 w-3 shrink-0 rounded-full bg-cyan-500" />
-                      <div className="min-w-0 flex-1 rounded-[8px] bg-slate-50 p-3">
+                      <div className="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-lime-300 text-xs font-black text-lime-950">✓</div>
+                      <div className="min-w-0 flex-1 rounded-[12px] bg-slate-50 p-3">
                         <div className="flex flex-wrap items-center justify-between gap-2">
                           <p className="font-semibold capitalize text-slate-950">{trackingStatusLabel(update.status)}</p>
                           <p className="text-xs font-medium text-slate-500">{new Date(update.createdAt).toLocaleString("en-IN", { dateStyle: "medium", timeStyle: "short" })}</p>
@@ -117,14 +114,22 @@ export default async function OrderDetailsPage({ params }: OrderDetailsPageProps
             </div>
           </section>
 
-          <aside className="rounded-[8px] border border-slate-200 bg-white p-5 shadow-[0_14px_40px_rgba(15,23,42,0.06)]">
+          <aside className="rounded-[18px] border border-slate-200 bg-white p-5 shadow-[0_18px_60px_rgba(20,33,29,0.08)]">
             <p className="text-sm font-semibold text-cyan-700">{order.brandName}</p>
             <h2 className="mt-1 text-xl font-semibold text-slate-950">Summary</h2>
-            <div className="mt-4 space-y-3 text-sm">
-              <div className="flex justify-between gap-3">
-                <span className="text-slate-500">Variant</span>
-                <span className="text-right font-semibold text-slate-950">{variantText(order.selectedVariant)}</span>
-              </div>
+            <div className="mt-4 space-y-3 border-t border-slate-100 pt-4 text-sm">
+              {mrpTotal ? (
+                <div className="flex justify-between">
+                  <span className="text-slate-500">MRP</span>
+                  <span className="font-semibold text-slate-500 line-through">{formatCatalogPrice(mrpTotal)}</span>
+                </div>
+              ) : null}
+              {savings ? (
+                <div className="flex justify-between text-rose-700">
+                  <span className="font-semibold">Team savings</span>
+                  <span className="font-semibold">{formatCatalogPrice(savings)}</span>
+                </div>
+              ) : null}
               <div className="flex justify-between">
                 <span className="text-slate-500">Paid</span>
                 <span className="font-semibold text-slate-950">{formatCatalogPrice(order.amountPaid)}</span>
@@ -140,13 +145,10 @@ export default async function OrderDetailsPage({ params }: OrderDetailsPageProps
             </div>
             <div className="mt-5 grid gap-2">
               {order.shareCode ? (
-                <Link href={`/team-room/${order.shareCode}`} className="inline-flex h-11 items-center justify-center rounded-[8px] border border-slate-300 bg-white px-4 text-sm font-semibold text-slate-950">
+                <Link href={`/team-room/${order.shareCode}`} className="inline-flex h-11 items-center justify-center rounded-[12px] border border-slate-300 bg-white px-4 text-sm font-semibold text-slate-950">
                   View room
                 </Link>
               ) : null}
-              <Link href={`/team-price/${order.brandSlug}/${order.productSlug}`} className="inline-flex h-11 items-center justify-center rounded-[8px] bg-rose-500 px-4 text-sm font-semibold text-white">
-                View product
-              </Link>
             </div>
           </aside>
         </div>

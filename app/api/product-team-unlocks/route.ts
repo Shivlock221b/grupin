@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getCurrentAccountProfile } from "@/lib/account-auth";
-import { getCachedBrandProductBySlugs, getProductTeamUnlockByCode, listProductTeamUnlockMembers } from "@/lib/data";
+import { getCachedBrandProductBySlugs, getProductTeamUnlockByCode, listProductTeamCartItems, listProductTeamUnlockMembers } from "@/lib/data";
 import { normalizePhone, phoneLookupVariants } from "@/lib/otp";
 import { effectiveTeamDiscountPercent } from "@/lib/product-pricing";
 import { createAdminClient } from "@/lib/supabase-admin";
@@ -14,7 +14,7 @@ function createShareCode() {
 function publicUnlock(row: Record<string, unknown>): ProductTeamUnlock {
   return {
     id: String(row.id),
-    productId: String(row.product_id),
+    productId: (row.product_id as string | null | undefined) ?? null,
     brandId: String(row.brand_id),
     ownerProfileId: (row.owner_profile_id as string | null | undefined) ?? null,
     shareCode: String(row.share_code),
@@ -22,8 +22,11 @@ function publicUnlock(row: Record<string, unknown>): ProductTeamUnlock {
     discountPercent: Number(row.discount_percent ?? 25),
     selectedVariant: row.selected_variant && typeof row.selected_variant === "object" ? row.selected_variant as ProductVariant : null,
     currentCount: Number(row.current_count ?? 0),
+    memberCount: Number(row.member_count ?? row.current_count ?? 0),
+    roomScope: (row.room_scope as ProductTeamUnlock["roomScope"] | null | undefined) ?? "product",
     status: row.status as ProductTeamUnlock["status"],
     expiresAt: String(row.expires_at),
+    closedAt: (row.closed_at as string | null | undefined) ?? null,
     createdAt: row.created_at ? String(row.created_at) : undefined,
   };
 }
@@ -118,11 +121,12 @@ export async function GET(request: NextRequest) {
       listProductTeamUnlockMembers(unlock.id),
       getCurrentAccountProfile(),
     ]);
+    const cartItems = await listProductTeamCartItems(unlock.id);
     const joined = profile
       ? members.some((member) => member.profileId === profile.id || phoneLookupVariants(profile.phone).includes(member.phone))
       : false;
 
-    return NextResponse.json({ unlock, members, joined });
+    return NextResponse.json({ unlock, members, cartItems, joined });
   } catch (error) {
     console.error("Product team unlock fetch error:", error);
     return NextResponse.json({ message: "Could not load room." }, { status: 500 });
