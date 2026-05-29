@@ -447,7 +447,7 @@ function ProductCatalogCard({ product, brandSlug, hasActiveBrandCart }: { produc
             disabled={busy}
             className="inline-flex h-10 w-full items-center justify-center rounded-[10px] bg-rose-500 px-2 text-xs font-black text-white transition hover:bg-rose-600 disabled:opacity-50 sm:h-11 sm:px-3 sm:text-sm"
           >
-            {busy ? "Adding..." : hasActiveBrandCart ? "Add to Cart" : "Buy at Team Price"}
+            {busy ? "Adding..." : "Add to Cart"}
           </button>
           {error ? <p className="text-xs font-semibold text-rose-600">{error}</p> : null}
         </div>
