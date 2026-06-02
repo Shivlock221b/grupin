@@ -1321,16 +1321,6 @@ export async function addAdminProductTeamCartItemAction(_state: ActionState, for
     return { success: false, message: "This member has already checked out." };
   }
 
-  const { count: existingMemberCartCount, error: existingMemberCartCountError } = await supabase
-    .from("product_team_cart_items")
-    .select("id", { count: "exact", head: true })
-    .eq("member_id", parsed.data.memberId);
-
-  if (existingMemberCartCountError) return { success: false, message: existingMemberCartCountError.message };
-  if (!existingMemberCartCount && Number(unlock.current_count ?? 0) >= Number(unlock.threshold ?? 3)) {
-    return { success: false, message: "This Team Room already has enough eligible carts. This member cannot add a new cart." };
-  }
-
   const brandRelation = productRow.brands;
   const brandRow = Array.isArray(brandRelation) ? brandRelation[0] : brandRelation;
   const product = {

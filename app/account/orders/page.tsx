@@ -32,7 +32,7 @@ export default async function AccountOrdersPage() {
             <p className="mt-2 text-slate-600">Your team-price checkout and order history.</p>
           </div>
           <Link href="/account/rooms" className="inline-flex h-11 items-center justify-center rounded-[8px] border border-slate-300 bg-white px-5 text-sm font-semibold text-slate-950">
-            Unlock rooms
+            Team Rooms
           </Link>
         </div>
 
@@ -81,7 +81,7 @@ export default async function AccountOrdersPage() {
             <h2 className="text-xl font-semibold text-slate-950">No orders yet</h2>
             <p className="mt-2 text-sm text-slate-500">When you checkout at team price, your orders will appear here.</p>
             <Link href="/account/rooms" className="mt-5 inline-flex h-11 items-center justify-center rounded-[8px] bg-rose-500 px-5 text-sm font-semibold text-white transition hover:bg-rose-600">
-              View unlock rooms
+              View Team Rooms
             </Link>
           </div>
         )}

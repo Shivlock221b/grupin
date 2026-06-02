@@ -1,13 +1,5 @@
-import { DealsPageContent } from "@/components/deals-page-content";
+import { redirect } from "next/navigation";
 
-type DealsPageProps = {
-  searchParams: Promise<{
-    category?: string;
-    area?: string;
-    discountBand?: string;
-  }>;
-};
-
-export default async function DealsPage({ searchParams }: DealsPageProps) {
-  return <DealsPageContent searchParams={searchParams} />;
+export default function DealsPage() {
+  redirect("/catalog/l-oreal-paris");
 }

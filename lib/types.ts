@@ -196,7 +196,7 @@ export type ProductTeamUnlockMember = {
   selectedVariant?: ProductVariant | null;
   phone: string;
   role: "owner" | "member";
-  cartStatus?: "empty" | "active" | "checked_out" | "left";
+  cartStatus?: "empty" | "active" | "checked_out" | "left" | "lapsed";
   roomScope?: "product" | "brand";
   cartCheckedOutAt?: string | null;
   createdAt: string;

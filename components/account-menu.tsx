@@ -40,7 +40,7 @@ export function AccountMenu() {
     await fetch("/api/account/logout", { method: "POST" });
     setProfile(null);
     setOpen(false);
-    window.location.href = "/unlock-deals";
+    window.location.href = "/catalog/l-oreal-paris";
   }
 
   if (!profile) {
@@ -67,7 +67,7 @@ export function AccountMenu() {
       </button>
 
       {open ? (
-        <div className="absolute right-0 top-12 z-50 w-64 overflow-hidden rounded-[8px] border border-slate-200 bg-white text-slate-950 shadow-[0_18px_50px_rgba(15,23,42,0.16)]">
+        <div className="absolute right-0 top-12 z-50 w-64 max-w-[calc(100vw-1rem)] overflow-hidden rounded-[8px] border border-slate-200 bg-white text-slate-950 shadow-[0_18px_50px_rgba(15,23,42,0.16)]">
           <div className="border-b border-slate-100 p-4">
             <p className="truncate text-sm font-semibold">{profile.fullName}</p>
             <p className="mt-1 truncate text-xs text-slate-500">{profile.phone}</p>
@@ -78,7 +78,7 @@ export function AccountMenu() {
           </Link>
           <Link href="/account/rooms" onClick={() => setOpen(false)} className="flex items-center gap-3 px-4 py-3 text-sm font-semibold transition hover:bg-slate-50">
             <Users className="h-4 w-4" />
-            Unlock rooms
+            Team Rooms
           </Link>
           <Link href="/account/orders" onClick={() => setOpen(false)} className="flex items-center gap-3 px-4 py-3 text-sm font-semibold transition hover:bg-slate-50">
             <Package className="h-4 w-4" />

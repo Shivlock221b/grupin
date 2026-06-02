@@ -20,7 +20,7 @@ export default async function AccountProfilePage() {
             <p className="mt-2 text-slate-600">Keep these updated so order updates reach the right place.</p>
           </div>
           <Link href="/account/rooms" className="inline-flex h-11 items-center justify-center rounded-[8px] border border-slate-300 bg-white px-4 text-sm font-semibold text-slate-950">
-            Unlock rooms
+            Team Rooms
           </Link>
         </div>
 

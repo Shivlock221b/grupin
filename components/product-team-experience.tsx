@@ -145,18 +145,21 @@ export function ProductTeamExperience({ product, initialUnlock = null, initialMe
   const joinedCount = unlock?.memberCount ?? members.length;
   const cartCount = unlock?.currentCount ?? new Set(cartItems.map((item) => item.memberId)).size;
   const threshold = unlock?.threshold ?? 3;
-  const cartsLeftToUnlock = Math.max(0, threshold - cartCount);
+  const teamMembersLeftToUnlock = Math.max(0, threshold - cartCount);
   const checkoutCount = checkoutProgress.length;
   const isTeamCartPage = Boolean(initialUnlock);
+  const currentMember = currentMemberId ? members.find((member) => member.id === currentMemberId) ?? null : null;
   const currentMemberHasCart = Boolean(currentMemberId && cartItems.some((item) => item.memberId === currentMemberId));
   const currentMemberCartItemCount = currentMemberId
     ? cartItems.filter((item) => item.memberId === currentMemberId).reduce((total, item) => total + cartItemQuantity(item), 0)
     : 0;
   const expired = Boolean(unlock && (unlock.status === "expired" || new Date(unlock.expiresAt).getTime() <= Date.now()));
   const roomUnlocked = Boolean(unlock && !expired && (unlock.status === "unlocked" || unlock.currentCount >= unlock.threshold));
-  const roomClosed = Boolean(unlock?.status === "completed" || (roomUnlocked && checkoutCount >= cartCount));
-  const canCheckout = Boolean(joined && currentMemberHasCart && roomUnlocked && !roomClosed && !expired);
-  const roomFullForCurrentMember = Boolean(unlock && !currentMemberHasCart && cartCount >= threshold);
+  const roomClosed = Boolean(unlock?.status === "completed" || (roomUnlocked && checkoutCount >= threshold));
+  const currentMemberCheckedOut = currentMember?.cartStatus === "checked_out";
+  const currentMemberLapsed = currentMember?.cartStatus === "lapsed" || (roomClosed && currentMemberHasCart && !currentMemberCheckedOut);
+  const checkoutSlotsLeft = Math.max(0, threshold - checkoutCount);
+  const canCheckout = Boolean(joined && currentMemberHasCart && roomUnlocked && !roomClosed && !expired && !currentMemberCheckedOut && !currentMemberLapsed);
   const roomTimerLabel = roomClosed ? "Team Room closed" : expired ? "Team Room expired" : "Team Room ends in";
   const roomTimerValue = roomClosed ? "Completed" : expired ? "Expired" : formatRemainingTime(unlock?.expiresAt);
   const hasLongDescription = Boolean(product.description && product.description.length > 160);
@@ -171,14 +174,14 @@ export function ProductTeamExperience({ product, initialUnlock = null, initialMe
     {
       icon: Users,
       title: "Share and Unlock Together",
-      text: `Share the Team Room link with friends and family. When ${threshold} members add products to their carts, the team price unlocks for those carts.`,
+      text: `Share the Team Room link with friends and family. When ${threshold} team members add products, Team Price unlocks. The first ${threshold} checkouts get the deal.`,
       accent: "bg-cyan-100 text-cyan-950",
       graphic: "share",
     },
     {
       icon: CreditCard,
       title: "Everyone avails the Team Discount",
-      text: "After the Team Room unlocks, eligible members can checkout their cart at the Team price.",
+      text: "After the Team Room unlocks, the first successful checkouts claim the Team Price slots.",
       accent: "bg-rose-100 text-rose-950",
       graphic: "discount",
     },
@@ -488,11 +491,11 @@ export function ProductTeamExperience({ product, initialUnlock = null, initialMe
             <div className="flex min-w-0 items-center gap-2">
               <div className="min-w-0">
                 <p className="truncate text-sm font-semibold">{product.brand?.name ?? product.vendor} Team Room is active</p>
-                <p className="truncate text-[11px] font-semibold text-lime-950/70 sm:hidden">{cartCount}/{threshold} member carts ready</p>
+                <p className="truncate text-[11px] font-semibold text-lime-950/70 sm:hidden">{cartCount}/{threshold} team members ready</p>
               </div>
             </div>
             <div className="flex shrink-0 items-center gap-2 text-xs font-semibold">
-              <span className="hidden sm:inline">{cartCount}/{threshold} member carts ready</span>
+              <span className="hidden sm:inline">{cartCount}/{threshold} team members ready</span>
               <span className="inline-flex items-center gap-1 rounded-full bg-white/65 px-2 py-1">
                 <ShoppingBag className="h-3.5 w-3.5" />
                 {currentMemberCartItemCount}
@@ -514,7 +517,7 @@ export function ProductTeamExperience({ product, initialUnlock = null, initialMe
                     <ShoppingBag className="h-6 w-6" />
                   </div>
                   <span className="rounded-full bg-white/75 px-3 py-1.5 text-xs font-semibold text-rose-700 ring-1 ring-white">
-                    {cartCount}/{threshold} member carts ready
+                    {cartCount}/{threshold} team members ready
                   </span>
                 </div>
                 <div>
@@ -540,7 +543,7 @@ export function ProductTeamExperience({ product, initialUnlock = null, initialMe
                     <div className="h-full rounded-full bg-rose-500" style={{ width: `${Math.min(100, (cartCount / threshold) * 100)}%` }} />
                   </div>
                   <p className="mt-2 text-xs font-semibold text-rose-700">
-                    {cartsLeftToUnlock > 0 ? `${cartsLeftToUnlock} member cart${cartsLeftToUnlock === 1 ? "" : "s"} left to unlock Team Price` : "Team Price unlocked"}
+                    {teamMembersLeftToUnlock > 0 ? `${teamMembersLeftToUnlock} team member${teamMembersLeftToUnlock === 1 ? "" : "s"} left to unlock Team Price` : "Team Price unlocked"}
                   </p>
                 </div>
 
@@ -627,7 +630,7 @@ export function ProductTeamExperience({ product, initialUnlock = null, initialMe
               <p className="text-sm font-semibold uppercase tracking-[0.14em] text-cyan-700">How GruPin works</p>
               <h2 className="mt-2 break-words text-2xl font-semibold tracking-tight text-slate-950">Join and add to cart to unlock</h2>
               <p className="mt-3 text-sm leading-6 text-slate-600">
-                This Team Room is for the entire {product.brand?.name ?? "brand"} catalog. Members can add products to their own carts, view each other&apos;s cart items, and unlock the discount when 3 members have non-empty carts.
+                This Team Room is for the entire {product.brand?.name ?? "brand"} catalog. Members can add products to their own carts, view each other&apos;s cart items, and unlock the discount when 3 team members have non-empty carts.
               </p>
               <div className="mt-4 grid gap-3">
                 <div className="grid grid-cols-[42px_1fr] gap-3 rounded-[16px] border border-cyan-100 bg-cyan-50 p-3">
@@ -656,14 +659,14 @@ export function ProductTeamExperience({ product, initialUnlock = null, initialMe
                 <div className="flex min-w-0 flex-wrap items-center justify-between gap-3">
                   <span className="text-sm font-semibold text-slate-600">Unlock Progress</span>
                   <span className="min-w-0 break-words text-xl font-semibold text-slate-950">
-                    {cartsLeftToUnlock > 0 ? `${cartsLeftToUnlock} member cart${cartsLeftToUnlock === 1 ? "" : "s"} left` : "Team Price unlocked"}
+                    {teamMembersLeftToUnlock > 0 ? `${teamMembersLeftToUnlock} team member${teamMembersLeftToUnlock === 1 ? "" : "s"} left` : "Team Price unlocked"}
                   </span>
                 </div>
                 <div className="mt-3 h-2 overflow-hidden rounded-full bg-slate-200">
                   <div className="h-full rounded-full bg-lime-400" style={{ width: `${Math.min(100, (cartCount / threshold) * 100)}%` }} />
                 </div>
                 <p className="mt-2 text-xs font-semibold text-slate-500">
-                  {cartsLeftToUnlock > 0 ? `${cartCount} of ${threshold} member carts ready. ${cartsLeftToUnlock} more member cart${cartsLeftToUnlock === 1 ? "" : "s"} needed to unlock Team Price.` : `${cartCount} member carts ready. Team Price is unlocked.`}
+                  {teamMembersLeftToUnlock > 0 ? `${cartCount} of ${threshold} team members ready. ${teamMembersLeftToUnlock} more team member${teamMembersLeftToUnlock === 1 ? "" : "s"} needed to unlock Team Price.` : `${cartCount} team members ready. Team Price is unlocked for the first ${threshold} checkouts.`}
                 </p>
               </div>
             </div>
@@ -912,10 +915,10 @@ export function ProductTeamExperience({ product, initialUnlock = null, initialMe
                     <div>
                       <p className="font-semibold text-slate-950">Checkout progress</p>
                       <p className="mt-1 text-sm text-slate-600">
-                        {roomClosed ? "This Team Room is closed. All eligible carts have checked out." : `${checkoutCount} of ${cartCount} eligible carts have placed their order on hold.`}
+                        {roomClosed ? "This Team Room is closed. The Team Price slots are full." : `${checkoutCount} of ${threshold} Team Price slots claimed. ${checkoutSlotsLeft} left.`}
                       </p>
                     </div>
-                    <span className="rounded-full bg-white px-3 py-1 text-xs font-bold text-lime-900">{checkoutCount}/{cartCount}</span>
+                    <span className="rounded-full bg-white px-3 py-1 text-xs font-bold text-lime-900">{checkoutCount}/{threshold}</span>
                   </div>
                   {checkoutProgress.length ? (
                     <div className="mt-3 space-y-2">
@@ -947,7 +950,9 @@ export function ProductTeamExperience({ product, initialUnlock = null, initialMe
                 </div>
               ) : roomClosed ? (
                 <div className="rounded-[8px] border border-lime-200 bg-lime-50 px-4 py-3 text-sm font-semibold text-lime-900">
-                  Team Room closed. All team orders have been placed.
+                  {currentMemberLapsed
+                    ? "You missed it this time. Start a fresh Team Room and unlock Team Price again."
+                    : "Team Room closed. The Team Price slots are full."}
                 </div>
               ) : joined && currentMemberHasCart ? (
                 <div className="fixed inset-x-4 bottom-4 z-40 grid gap-2 sm:static sm:w-full sm:shadow-none">
@@ -964,11 +969,6 @@ export function ProductTeamExperience({ product, initialUnlock = null, initialMe
                 </div>
               ) : joined ? (
                 <>
-                  {roomFullForCurrentMember ? (
-                    <div className="rounded-[8px] border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-semibold text-amber-900">
-                      This Team Room already has {threshold} eligible carts. Leave this room to start a new one.
-                    </div>
-                  ) : null}
                   <Link href={`/catalog/${product.brand?.slug ?? "brand"}`} className="fixed inset-x-4 bottom-4 z-40 inline-flex h-12 items-center justify-center gap-2 rounded-[12px] bg-rose-500 px-5 text-sm font-bold text-white shadow-[0_16px_36px_rgba(244,63,94,0.28)] transition hover:bg-rose-600 sm:static sm:w-full sm:shadow-none">
                     Explore Catalog
                     <ArrowRight className="h-4 w-4" />
@@ -994,18 +994,13 @@ export function ProductTeamExperience({ product, initialUnlock = null, initialMe
             </div>
           ) : (
             <div className="mt-5 grid gap-2">
-              {roomFullForCurrentMember ? (
-                <div className="rounded-[8px] border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-semibold text-amber-900">
-                  This Team Room already has {threshold} eligible carts. Start a new Team Room to unlock this product.
-                </div>
-              ) : null}
               <button
                 type="button"
                 onClick={openTeamPriceFlow}
-                disabled={busy || expired || roomFullForCurrentMember}
+                disabled={busy || expired}
                 className="fixed inset-x-4 bottom-4 z-40 inline-flex h-12 items-center justify-center gap-2 rounded-[12px] bg-rose-500 px-5 text-sm font-black text-white shadow-[0_16px_36px_rgba(244,63,94,0.28)] transition hover:bg-rose-600 disabled:opacity-50 sm:static sm:w-full sm:shadow-none"
               >
-                {roomFullForCurrentMember ? "Team Room full" : "Add to Cart"}
+                Add to Cart
                 <ArrowRight className="h-4 w-4" />
               </button>
               {product.productUrl ? (
@@ -1118,7 +1113,7 @@ export function ProductTeamExperience({ product, initialUnlock = null, initialMe
 
       {flowOpen ? (
         <div className="fixed inset-0 z-50 overflow-x-hidden bg-slate-950/45 px-0 py-4 backdrop-blur-sm sm:grid sm:place-items-center sm:px-4">
-          <div className="fixed inset-x-0 bottom-0 w-full max-w-full overflow-x-hidden overflow-y-auto rounded-t-[16px] bg-white p-4 shadow-[0_-18px_60px_rgba(15,23,42,0.22)] sm:static sm:max-h-[88vh] sm:w-full sm:max-w-md sm:rounded-[12px] sm:p-5">
+          <div className="fixed inset-x-0 bottom-0 max-h-[calc(100dvh-1rem)] w-full max-w-full overflow-x-hidden overflow-y-auto overscroll-contain rounded-t-[16px] bg-white p-4 pb-[calc(1rem+env(safe-area-inset-bottom))] shadow-[0_-18px_60px_rgba(15,23,42,0.22)] sm:static sm:max-h-[88vh] sm:w-full sm:max-w-md sm:rounded-[12px] sm:p-5">
             <div className="flex min-w-0 items-start justify-between gap-3">
               <div className="min-w-0">
                 <p className="text-sm font-bold uppercase tracking-[0.16em] text-cyan-700">Team price</p>
@@ -1312,7 +1307,7 @@ export function ProductTeamExperience({ product, initialUnlock = null, initialMe
               <div className="mt-5 min-w-0 space-y-4">
                 <div className="rounded-[10px] bg-emerald-50 p-4 text-emerald-950">
                   <p className="font-semibold">{isTeamCartPage ? "You have joined this Team Room." : "This item is in cart."}</p>
-                  <p className="mt-1 text-sm leading-5">Share it with friends or family. When {threshold} members add products, eligible carts unlock the team price.</p>
+                  <p className="mt-1 text-sm leading-5">Share it with friends or family. When {threshold} team members add products, Team Price unlocks. First {threshold} checkouts get the deal.</p>
                 </div>
                 {shareUrl ? (
                   <div className="space-y-2">

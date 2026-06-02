@@ -60,7 +60,7 @@ export function AccountProfileForm({ profile }: AccountProfileFormProps) {
           />
         </label>
         <label className="block text-sm font-medium text-slate-700">
-          Email for voucher delivery
+          Email for order updates
           <input
             type="email"
             value={form.email}

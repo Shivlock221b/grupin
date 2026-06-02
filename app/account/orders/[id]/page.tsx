@@ -74,14 +74,14 @@ export default async function OrderDetailsPage({ params }: OrderDetailsPageProps
               <h2 className="mt-1 text-2xl font-semibold capitalize tracking-tight text-slate-950 sm:text-3xl">{latestUpdate ? trackingStatusLabel(visibleStatus) : statusLabel(visibleStatus)}</h2>
               <p className="mt-2 text-sm font-semibold leading-6 text-lime-950">
                 {latestUpdate?.remark ?? (order.status === "confirmed"
-                  ? "Everyone in your Team Room has checked out. Your order is confirmed."
-                  : "Your payment is captured. The order will confirm after all eligible carts checkout.")}
+                  ? "Your Team Price slot is confirmed."
+                  : "Your payment is captured. The order will confirm when the Team Price slots are filled.")}
               </p>
             </div>
             <div className="mt-4 grid gap-3">
               <div className="rounded-[12px] bg-slate-50 p-4">
                 <p className="text-xs font-semibold text-slate-500">Room progress</p>
-                <p className="mt-1 font-semibold text-slate-950">{order.roomCurrentCount ?? "-"} / {order.roomThreshold ?? "-"} member carts ready · {order.roomStatus ?? "room"}</p>
+                <p className="mt-1 font-semibold text-slate-950">{order.roomCurrentCount ?? "-"} / {order.roomThreshold ?? "-"} team members ready · {order.roomStatus ?? "room"}</p>
               </div>
               <div className="rounded-[12px] bg-slate-50 p-4">
                 <p className="text-xs font-semibold text-slate-500">Delivery address</p>

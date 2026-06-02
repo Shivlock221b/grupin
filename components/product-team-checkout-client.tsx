@@ -175,7 +175,7 @@ export function ProductTeamCheckoutClient({ code, cartItems, unlock, profile }: 
         <div className="rounded-[16px] bg-lime-50 p-4">
           <p className="text-sm font-semibold uppercase tracking-[0.14em] text-cyan-700">Team Price unlocked</p>
           <h1 className="mt-2 text-2xl font-semibold tracking-tight sm:text-3xl">Checkout your cart</h1>
-          <p className="mt-2 text-sm font-semibold leading-6 text-slate-600">Pay for your cart now. Your order stays on hold until every eligible cart checks out.</p>
+          <p className="mt-2 text-sm font-semibold leading-6 text-slate-600">Pay for your cart now to claim a Team Price checkout slot.</p>
         </div>
 
         <div className="mt-5 grid gap-3">
@@ -190,7 +190,7 @@ export function ProductTeamCheckoutClient({ code, cartItems, unlock, profile }: 
           </div>
         </div>
         <div className="mt-5 rounded-[16px] bg-amber-50 p-4 text-sm font-semibold leading-6 text-amber-950">
-          Your payment places this cart order on hold. Once every eligible cart checks out, all orders move to confirmed. If the Team Room expires before checkout completes, refunds will be handled as per policy.
+          Your payment claims one Team Price slot. Once the available slots are claimed, the Team Room closes and orders move ahead. If the Team Room expires before checkout completes, refunds will be handled as per policy.
         </div>
         {error ? <p className="mt-4 rounded-[8px] bg-rose-50 px-3 py-2 text-sm font-semibold text-rose-700">{error}</p> : null}
         {success ? (

@@ -112,8 +112,8 @@ export async function POST(request: NextRequest) {
       throw checkoutCountError;
     }
 
-    if (checkoutCount !== null && checkoutCount >= effectiveUnlock.currentCount) {
-      return NextResponse.json({ message: "This Team Room is closed. All eligible carts have checked out." }, { status: 409 });
+    if (checkoutCount !== null && checkoutCount >= effectiveUnlock.threshold) {
+      return NextResponse.json({ message: "You missed this Team Price drop. Start your own Team Room to unlock again." }, { status: 409 });
     }
 
     const payable = memberCartItems.reduce((total, item) => total + item.teamPriceSnapshot * item.quantity, 0);

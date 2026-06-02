@@ -1,10 +1,7 @@
-import { PrivateUnlockMarketplace } from "@/components/private-unlock-marketplace";
-import { listCachedPrivateUnlockDealConfigs } from "@/lib/data";
+import { redirect } from "next/navigation";
 
 export const dynamic = "force-dynamic";
 
-export default async function UnlockDealsPage() {
-  const configs = await listCachedPrivateUnlockDealConfigs();
-
-  return <PrivateUnlockMarketplace configs={configs} />;
+export default function UnlockDealsPage() {
+  redirect("/catalog/l-oreal-paris");
 }

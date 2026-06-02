@@ -99,7 +99,7 @@ export default async function AdminDashboardPage() {
         </Link>
         <Link href="/admin/product-rooms" className="rounded-[8px] border border-slate-200 bg-white p-5 transition hover:border-slate-400">
           <p className="text-xl font-semibold text-slate-950">Team Rooms</p>
-          <p className="mt-1 text-sm text-slate-500">Control room status, expiry, member carts, and dummy members.</p>
+          <p className="mt-1 text-sm text-slate-500">Control room status, expiry, team members, and dummy carts.</p>
         </Link>
         <Link href="/admin/product-orders" className="rounded-[8px] border border-slate-200 bg-white p-5 transition hover:border-slate-400">
           <p className="text-xl font-semibold text-slate-950">Team Room orders</p>

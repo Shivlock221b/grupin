@@ -208,7 +208,7 @@ export function ProductCatalog({ products, brandSlug }: ProductCatalogProps) {
             <div className="flex min-w-0 items-center gap-2">
               <div className="min-w-0">
                 <p className="truncate text-sm font-semibold">{brandName} Team Room is active</p>
-                <p className="truncate text-[11px] font-bold text-lime-950/70 sm:hidden">{activeCart.unlock.currentCount}/{activeCart.unlock.threshold} member carts ready</p>
+                <p className="truncate text-[11px] font-bold text-lime-950/70 sm:hidden">{activeCart.unlock.currentCount}/{activeCart.unlock.threshold} team members ready</p>
               </div>
             </div>
             <div className="flex shrink-0 items-center gap-2 text-xs font-semibold">
@@ -216,7 +216,7 @@ export function ProductCatalog({ products, brandSlug }: ProductCatalogProps) {
                 <ShoppingBag className="h-3.5 w-3.5" />
                 {activeCartItemCount}
               </span>
-              <span className="hidden sm:inline">{activeCart.unlock.currentCount}/{activeCart.unlock.threshold} member carts ready</span>
+              <span className="hidden sm:inline">{activeCart.unlock.currentCount}/{activeCart.unlock.threshold} team members ready</span>
               <span className="rounded-full bg-white/65 px-2 py-1">{formatRemaining(activeCart.unlock.expiresAt)}</span>
             </div>
           </div>
@@ -484,14 +484,14 @@ function CatalogUnlockFlow({ product, teamPriceText, onClose }: { product: Brand
     {
       icon: Users,
       title: "Share and Unlock Together",
-      text: "Share the Team Room link with friends and family. When 3 members add products to their carts, the team price unlocks for those carts.",
+      text: "Share the Team Room link with friends and family. When 3 team members add products, Team Price unlocks.",
       accent: "bg-cyan-100 text-cyan-950",
       graphic: "share",
     },
     {
       icon: CreditCard,
       title: "Everyone avails the Team Discount",
-      text: "After the Team Room unlocks, eligible members can checkout their cart at the Team price.",
+      text: "After the Team Room unlocks, the first 3 successful checkouts get the Team Price.",
       accent: "bg-rose-100 text-rose-950",
       graphic: "discount",
     },
@@ -582,7 +582,7 @@ function CatalogUnlockFlow({ product, teamPriceText, onClose }: { product: Brand
       className="fixed inset-0 z-50 overflow-x-hidden bg-slate-950/45 px-0 py-4 backdrop-blur-sm sm:grid sm:place-items-center sm:px-4"
       onClick={(event) => event.stopPropagation()}
     >
-      <div className="fixed inset-x-0 bottom-0 w-full max-w-full overflow-x-hidden overflow-y-auto rounded-t-[16px] bg-white p-4 shadow-[0_-18px_60px_rgba(15,23,42,0.22)] sm:static sm:max-h-[88vh] sm:w-full sm:max-w-md sm:rounded-[12px] sm:p-5">
+      <div className="fixed inset-x-0 bottom-0 max-h-[calc(100dvh-1rem)] w-full max-w-full overflow-x-hidden overflow-y-auto overscroll-contain rounded-t-[16px] bg-white p-4 pb-[calc(1rem+env(safe-area-inset-bottom))] shadow-[0_-18px_60px_rgba(15,23,42,0.22)] sm:static sm:max-h-[88vh] sm:w-full sm:max-w-md sm:rounded-[12px] sm:p-5">
         <div className="flex min-w-0 items-start justify-between gap-3">
           <div className="min-w-0">
             <p className="text-sm font-bold uppercase tracking-[0.16em] text-cyan-700">Team price</p>

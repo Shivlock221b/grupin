@@ -26,8 +26,8 @@ export default async function AccountRoomsPage() {
         <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
           <div>
             <p className="text-sm font-bold uppercase tracking-[0.16em] text-emerald-700">Account</p>
-            <h1 className="mt-1 text-4xl font-semibold tracking-tight text-slate-950">Unlock rooms</h1>
-            <p className="mt-2 text-slate-600">Track rooms you have joined, share active rooms, and continue when team price unlocks.</p>
+            <h1 className="mt-1 text-4xl font-semibold tracking-tight text-slate-950">Team Rooms</h1>
+            <p className="mt-2 text-slate-600">Track rooms you have joined, share active rooms, and continue when Team Price unlocks.</p>
           </div>
           <Link href="/account/orders" className="inline-flex h-11 items-center justify-center rounded-[8px] border border-slate-300 bg-white px-5 text-sm font-semibold text-slate-950">
             Orders
@@ -73,8 +73,8 @@ export default async function AccountRoomsPage() {
           </div>
         ) : (
           <div className="rounded-[8px] border border-dashed border-slate-300 bg-white p-10 text-center">
-            <h2 className="text-xl font-semibold text-slate-950">No unlock rooms yet</h2>
-            <p className="mt-2 text-sm text-slate-500">Start or join a team-price room and it will appear here.</p>
+            <h2 className="text-xl font-semibold text-slate-950">No Team Rooms yet</h2>
+            <p className="mt-2 text-sm text-slate-500">Start or join a Team Room and it will appear here.</p>
             <Link href="/catalog/l-oreal-paris" className="mt-5 inline-flex h-11 items-center justify-center rounded-[8px] bg-rose-500 px-5 text-sm font-semibold text-white transition hover:bg-rose-600">
               Explore products
             </Link>

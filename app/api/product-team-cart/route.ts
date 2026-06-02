@@ -236,7 +236,7 @@ export async function POST(request: NextRequest) {
           "<b>Team Room joined</b>",
           `Team Room: <b>${escapeTelegramHtml(effectiveUnlock.shareCode)}</b>`,
           `Phone: ${escapeTelegramHtml(adminPhoneLabel(profile.phone))}`,
-          `Progress: ${effectiveUnlock.currentCount}/${effectiveUnlock.threshold} carts`,
+          `Progress: ${effectiveUnlock.currentCount}/${effectiveUnlock.threshold} team members`,
         ].join("\n"),
       });
 
@@ -354,13 +354,6 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ message: "You have already checked out for this Team Room, so this cart cannot be edited." }, { status: 409 });
     }
 
-    const existingCartItems = await listProductTeamCartItems(unlock.id);
-    const memberHasCart = existingCartItems.some((item) => item.memberId === memberId);
-
-    if (!memberHasCart && unlock.currentCount >= unlock.threshold) {
-      return NextResponse.json({ message: "This Team Room is already unlocked. Start your own Team Room to add products at the team price." }, { status: 409 });
-    }
-
     const selected = selectedVariant(product, selectedVariantKey);
     const selectedKey = variantKey(selected);
     const mrp = selected?.price ?? productDisplayPrice(product) ?? product.mrp ?? product.priceMax ?? product.priceMin ?? 0;
@@ -437,7 +430,7 @@ export async function POST(request: NextRequest) {
         `Added: ${escapeTelegramHtml(product.title)}`,
         `Variant: ${escapeTelegramHtml(variantLabel(selected))}`,
         `Quantity: ${nextQuantity}`,
-        `Progress: ${finalUnlock.currentCount}/${finalUnlock.threshold} carts`,
+        `Progress: ${finalUnlock.currentCount}/${finalUnlock.threshold} team members`,
         `Status: ${escapeTelegramHtml(finalUnlock.status)}`,
       ].join("\n"),
     });
@@ -624,7 +617,7 @@ export async function DELETE(request: NextRequest) {
         "<b>Team Room left</b>",
         `Team Room: <b>${escapeTelegramHtml(effectiveUnlock.shareCode)}</b>`,
         `Phone: ${escapeTelegramHtml(adminPhoneLabel(profile.phone))}`,
-        `Progress: ${refreshedUnlock?.currentCount ?? effectiveUnlock.currentCount}/${refreshedUnlock?.threshold ?? effectiveUnlock.threshold} carts`,
+        `Progress: ${refreshedUnlock?.currentCount ?? effectiveUnlock.currentCount}/${refreshedUnlock?.threshold ?? effectiveUnlock.threshold} team members`,
       ].join("\n"),
     });
 

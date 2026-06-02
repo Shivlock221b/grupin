@@ -31,7 +31,7 @@ export default async function AdminProductRoomsPage() {
               <div>
                 <p className="font-semibold text-slate-950">{room.brandName ?? "Brand"} Team Room</p>
                 <p className="text-sm text-slate-500">
-                  {room.shareCode} · {room.currentCount}/{room.threshold} member carts ready · {room.memberCount} joined · {room.cartItems.length} items
+                  {room.shareCode} · {room.currentCount}/{room.threshold} team members ready · {room.memberCount} joined · {room.cartItems.length} items
                 </p>
                 <p className="text-xs font-semibold text-slate-400">
                   {room.roomScope} · {room.status} · expires {new Date(room.expiresAt).toLocaleString("en-IN")}

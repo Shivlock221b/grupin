@@ -81,7 +81,7 @@ export function AccountLoginForm() {
         <ShieldCheck className="h-8 w-8" />
       </div>
       <h1 className="mt-5 text-center text-3xl font-semibold tracking-tight text-slate-950">Login with phone</h1>
-      <p className="mt-2 text-center text-sm text-slate-500">View unlocked coupons and pay the remaining amount when a room unlocks.</p>
+      <p className="mt-2 text-center text-sm text-slate-500">Manage Team Rooms, carts, checkout slots, and order updates.</p>
 
       {step === "phone" ? (
         <form onSubmit={sendOtp} className="mt-6 space-y-4">

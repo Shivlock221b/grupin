@@ -1,8 +1,9 @@
 const faqs = [
-  ["How does GruPin unlock work?", "Pick a voucher, start a private room, invite people, and unlock the reward when the room reaches its target."],
-  ["Is the token refundable?", "Yes. The token is refundable if the private room does not unlock within the room window."],
-  ["Where do I get the coupon code?", "After final payment, the coupon code is delivered to your registered email/phone number within 30 minutes."],
-  ["Can I join multiple coupons?", "For now, one phone number can join one coupon unlock in a 24-hour window."],
+  ["How does GruPin Team Price work?", "Pick products from a brand catalog, start or join a Team Room, and add products to your cart. When enough team members have carts, Team Price unlocks."],
+  ["Who gets the Team Price?", "After the room unlocks, the first successful checkouts claim the Team Price slots. If you miss it this time, you can start a new Team Room and unlock again."],
+  ["Can I add multiple products?", "Yes. Your cart can include multiple products from the same brand catalog while the Team Room is active."],
+  ["When do I pay?", "Starting, joining, and sharing are free. You pay only at checkout after Team Price unlocks."],
+  ["Can I leave a Team Room?", "Yes. If you leave before checkout, your cart is removed from that room and you can start or join another room for the brand."],
 ];
 
 export default function FaqsPage() {

@@ -703,8 +703,8 @@ export function PrivateUnlockExperience({ deal, config = null, initialUnlock = n
       </section>
 
       {isModalOpen ? (
-        <div className="fixed inset-0 z-50 grid place-items-center bg-slate-950/60 px-4 backdrop-blur-sm">
-          <div className="w-full max-w-md rounded-[8px] bg-white p-5 shadow-2xl">
+        <div className="fixed inset-0 z-50 grid place-items-center overflow-x-hidden overflow-y-auto bg-slate-950/60 px-4 py-4 backdrop-blur-sm">
+          <div className="max-h-[calc(100dvh-2rem)] w-full max-w-md overflow-x-hidden overflow-y-auto overscroll-contain rounded-[8px] bg-white p-5 shadow-2xl">
             <div className="flex items-start justify-between gap-3">
               <div>
                 <h2 className="text-2xl font-semibold">Lock your spot</h2>

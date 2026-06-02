@@ -949,11 +949,11 @@ export function GroupDealExperience({ initialDeal, initialReservations }: GroupD
       </motion.div>
 
       {isModalOpen ? (
-        <div className="fixed inset-0 z-50 grid place-items-center bg-slate-950/55 px-4">
+        <div className="fixed inset-0 z-50 grid place-items-center overflow-x-hidden overflow-y-auto bg-slate-950/55 px-4 py-4">
           <motion.div
             initial={{ opacity: 0, y: 18, scale: 0.98 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
-            className="w-full max-w-md rounded-[8px] bg-white p-5 shadow-2xl sm:p-6"
+            className="max-h-[calc(100dvh-2rem)] w-full max-w-md overflow-x-hidden overflow-y-auto overscroll-contain rounded-[8px] bg-white p-5 shadow-2xl sm:p-6"
           >
             <div className="flex items-start justify-between gap-4">
               <div>

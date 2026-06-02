@@ -971,7 +971,7 @@ export async function syncProductTeamUnlockOrderStatus(unlockId: string) {
   const expired = unlock.expires_at ? new Date(String(unlock.expires_at)).getTime() <= Date.now() : false;
   const nextStatus = expired
     ? "expired"
-    : currentCount >= threshold && checkoutCount >= currentCount
+    : checkoutCount >= threshold
     ? "completed"
     : currentCount >= threshold
       ? "unlocked"
@@ -986,6 +986,16 @@ export async function syncProductTeamUnlockOrderStatus(unlockId: string) {
 
     if (ordersError) {
       throw ordersError;
+    }
+
+    const { error: lapsedMemberError } = await supabase
+      .from("product_team_unlock_members")
+      .update({ cart_status: "lapsed" })
+      .eq("unlock_id", unlockId)
+      .in("cart_status", ["empty", "active"]);
+
+    if (lapsedMemberError) {
+      throw lapsedMemberError;
     }
   }
 
