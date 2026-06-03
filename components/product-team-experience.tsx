@@ -2,8 +2,10 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { ArrowRight, Check, Copy, CreditCard, ExternalLink, Info, Share2, ShoppingBag, Sparkles, Star, Users, X } from "lucide-react";
 import { AccountMenu } from "@/components/account-menu";
+import { CartLeafNotification } from "@/components/cart-leaf-notification";
 import { productImageUrl } from "@/lib/product-images";
 import { BrandProduct, ProductTeamCartItem, ProductTeamCheckoutProgress, ProductTeamUnlock, ProductTeamUnlockMember } from "@/lib/types";
 import { effectiveTeamDiscountPercent, formatCatalogPrice, highestPricedVariant, productDisplayPrice, productSavings, teamPrice, teamPriceForProduct } from "@/lib/product-pricing";
@@ -110,6 +112,7 @@ function trackProductTeamCta(product: BrandProduct, source: string) {
 }
 
 export function ProductTeamExperience({ product, initialUnlock = null, initialMembers = [], initialCartItems = [], initialCheckoutProgress = [], initiallyJoined = false, initialCurrentMemberId = null, bestSellerProducts = [] }: ProductTeamExperienceProps) {
+  const router = useRouter();
   const defaultVariant = highestPricedVariant(product);
   const [selectedVariantKey, setSelectedVariantKey] = useState("");
   const [imageIndex, setImageIndex] = useState(0);
@@ -121,6 +124,8 @@ export function ProductTeamExperience({ product, initialUnlock = null, initialMe
   const [joined, setJoined] = useState(initiallyJoined);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState("");
+  const [cartNotice, setCartNotice] = useState("");
+  const [cartNoticeTone, setCartNoticeTone] = useState<"success" | "warning">("success");
   const [flowOpen, setFlowOpen] = useState(false);
   const [instructionsOnly, setInstructionsOnly] = useState(false);
   const [flowStep, setFlowStep] = useState<"intro" | "phone" | "otp" | "joined">("intro");
@@ -217,6 +222,21 @@ export function ProductTeamExperience({ product, initialUnlock = null, initialMe
   }, [isTeamCartPage]);
 
   useEffect(() => {
+    if (typeof window === "undefined") {
+      return;
+    }
+
+    const storedNotice = window.sessionStorage.getItem("grupin-cart-notice");
+
+    if (!storedNotice) {
+      return;
+    }
+
+    window.sessionStorage.removeItem("grupin-cart-notice");
+    setCartNotice(storedNotice);
+  }, []);
+
+  useEffect(() => {
     const brandSlug = product.brand?.slug;
 
     if (isTeamCartPage || !brandSlug) {
@@ -266,6 +286,8 @@ export function ProductTeamExperience({ product, initialUnlock = null, initialMe
     if (hasVariants && !selectedVariantKey) {
       setMessage(`Choose ${variantType === "shade" ? "a shade" : variantType === "size" ? "a size" : "a variant"} before adding to cart.`);
       setFlowError(`Choose ${variantType === "shade" ? "a shade" : variantType === "size" ? "a size" : "a variant"} before adding to cart.`);
+      setCartNoticeTone("warning");
+      setCartNotice(`Choose ${variantType === "shade" ? "a shade" : variantType === "size" ? "a size" : "a variant"} first.`);
       return;
     }
 
@@ -296,8 +318,15 @@ export function ProductTeamExperience({ product, initialUnlock = null, initialMe
       setCartItems(payload.cartItems ?? []);
       setCurrentMemberId(payload.currentMemberId ?? currentMemberId);
       setJoined(true);
+      if (!isTeamCartPage && (payload.createdRoom || payload.joinedRoom)) {
+        window.sessionStorage.setItem("grupin-cart-notice", "Added to cart.");
+        router.push(`/team-room/${payload.unlock.shareCode}`);
+        return;
+      }
       setFlowStep("joined");
       setMessage("Added to cart. Share the Team Room to unlock the team price.");
+      setCartNoticeTone("success");
+      setCartNotice("Added to cart.");
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : "Could not join unlock.";
       setMessage(errorMessage);
@@ -482,6 +511,7 @@ export function ProductTeamExperience({ product, initialUnlock = null, initialMe
           <AccountMenu />
         </div>
       </header>
+      <CartLeafNotification message={cartNotice} tone={cartNoticeTone} onDismiss={() => setCartNotice("")} />
       {!isTeamCartPage && unlock && joined && !expired && !roomClosed ? (
         <Link
           href={`/team-room/${unlock.shareCode}`}

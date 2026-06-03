@@ -246,6 +246,8 @@ export async function POST(request: NextRequest) {
         cartItems,
         joined: true,
         added: false,
+        createdRoom: false,
+        joinedRoom: !existingMember,
         currentMemberId: currentMemberIdFromMembers(members, profile.id, profile.phone),
       });
     }
@@ -435,7 +437,16 @@ export async function POST(request: NextRequest) {
       ].join("\n"),
     });
 
-    return NextResponse.json({ unlock: finalUnlock, members, cartItems, joined: true, added: true, currentMemberId: memberId });
+    return NextResponse.json({
+      unlock: finalUnlock,
+      members,
+      cartItems,
+      joined: true,
+      added: true,
+      createdRoom: createdCart,
+      joinedRoom: joinedCart,
+      currentMemberId: memberId,
+    });
   } catch (error) {
     console.error("Product team cart mutation error:", error);
     return NextResponse.json({ message: "Could not update Team Room." }, { status: 500 });

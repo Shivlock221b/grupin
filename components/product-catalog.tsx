@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { ArrowRight, Check, CreditCard, ExternalLink, Search, ShoppingBag, Sparkles, Star, Users, X } from "lucide-react";
 import { AccountMenu } from "@/components/account-menu";
+import { CartLeafNotification } from "@/components/cart-leaf-notification";
 import { productImageUrl } from "@/lib/product-images";
 import { BrandProduct, ProductTeamCartItem, ProductTeamUnlock, ProductTeamUnlockMember } from "@/lib/types";
 import { formatCatalogPrice, productDisplayPrice, productSavings, teamPrice, teamPriceForProduct } from "@/lib/product-pricing";
@@ -114,6 +115,8 @@ export function ProductCatalog({ products, brandSlug }: ProductCatalogProps) {
     cartItems: ProductTeamCartItem[];
     currentMemberId?: string | null;
   } | null>(null);
+  const [cartNotice, setCartNotice] = useState("");
+  const [cartNoticeTone, setCartNoticeTone] = useState<"success" | "warning">("success");
   const [, setClockTick] = useState(0);
   const brandName = products[0]?.brand?.name ?? products[0]?.vendor ?? "Brand";
   const catalogHref = brandSlug ? `/catalog/${brandSlug}` : "/catalog";
@@ -253,7 +256,7 @@ export function ProductCatalog({ products, brandSlug }: ProductCatalogProps) {
                   <Link
                     href={`/team-price/${featured.brand?.slug ?? brandSlug ?? "brand"}/${featured.slug}`}
                     onClick={() => trackProductTeamCta(featured, "catalog_hero")}
-                    className="inline-flex min-h-12 w-fit items-center justify-center gap-2 rounded-[12px] bg-rose-500 px-5 py-3 text-sm font-black text-white shadow-[0_16px_36px_rgba(244,63,94,0.32)] transition hover:bg-rose-600"
+                    className="inline-flex min-h-11 w-fit items-center justify-center gap-2 rounded-[10px] bg-rose-500 px-4 py-2.5 text-sm font-semibold text-white shadow-[0_12px_28px_rgba(244,63,94,0.24)] transition hover:bg-rose-600"
                   >
                     {hasActiveBrandCart ? "Add to Cart" : "Buy at Team Price"}
                     <ArrowRight className="h-4 w-4" />
@@ -301,7 +304,22 @@ export function ProductCatalog({ products, brandSlug }: ProductCatalogProps) {
 
         <div className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4">
           {filteredProducts.map((product) => (
-            <ProductCatalogCard key={product.id} product={product} brandSlug={brandSlug} hasActiveBrandCart={hasActiveBrandCart} />
+            <ProductCatalogCard
+              key={product.id}
+              product={product}
+              brandSlug={brandSlug}
+              hasActiveBrandCart={hasActiveBrandCart}
+              onCartUpdated={(payload) => {
+                setActiveCart({
+                  unlock: payload.unlock,
+                  members: payload.members ?? [],
+                  cartItems: payload.cartItems ?? [],
+                  currentMemberId: payload.currentMemberId ?? null,
+                });
+              }}
+              onCartNotice={setCartNotice}
+              onCartNoticeTone={setCartNoticeTone}
+            />
           ))}
         </div>
 
@@ -312,11 +330,35 @@ export function ProductCatalog({ products, brandSlug }: ProductCatalogProps) {
           </div>
         ) : null}
       </section>
+      <CartLeafNotification message={cartNotice} tone={cartNoticeTone} onDismiss={() => setCartNotice("")} />
     </main>
   );
 }
 
-function ProductCatalogCard({ product, brandSlug, hasActiveBrandCart }: { product: BrandProduct; brandSlug?: string; hasActiveBrandCart: boolean }) {
+type ProductTeamCartPayload = {
+  unlock: ProductTeamUnlock;
+  members?: ProductTeamUnlockMember[];
+  cartItems?: ProductTeamCartItem[];
+  currentMemberId?: string | null;
+  createdRoom?: boolean;
+  joinedRoom?: boolean;
+};
+
+function ProductCatalogCard({
+  product,
+  brandSlug,
+  hasActiveBrandCart,
+  onCartUpdated,
+  onCartNotice,
+  onCartNoticeTone,
+}: {
+  product: BrandProduct;
+  brandSlug?: string;
+  hasActiveBrandCart: boolean;
+  onCartUpdated: (payload: ProductTeamCartPayload) => void;
+  onCartNotice: (message: string) => void;
+  onCartNoticeTone: (tone: "success" | "warning") => void;
+}) {
   const router = useRouter();
   const selectedPrice = productDisplayPrice(product);
   const selectedTeamPrice = teamPriceForProduct(product);
@@ -327,6 +369,7 @@ function ProductCatalogCard({ product, brandSlug, hasActiveBrandCart }: { produc
   const [flowOpen, setFlowOpen] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+  const [success, setSuccess] = useState("");
   const requiresVariantSelection = Boolean(variantsLabel);
 
   function openProductDetails() {
@@ -336,6 +379,7 @@ function ProductCatalogCard({ product, brandSlug, hasActiveBrandCart }: { produc
   async function addToActiveTeamCart() {
     setBusy(true);
     setError("");
+    setSuccess("");
     try {
       const response = await fetch("/api/product-team-cart", {
         method: "POST",
@@ -357,7 +401,16 @@ function ProductCatalogCard({ product, brandSlug, hasActiveBrandCart }: { produc
         throw new Error(payload.message ?? "Could not add to cart.");
       }
 
-      router.push(`/team-room/${payload.unlock.shareCode}`);
+      onCartUpdated(payload);
+      if (payload.createdRoom || payload.joinedRoom) {
+        window.sessionStorage.setItem("grupin-cart-notice", "Added to cart.");
+        router.push(`/team-room/${payload.unlock.shareCode}`);
+        return;
+      }
+
+      setSuccess("Added to cart.");
+      onCartNoticeTone("success");
+      onCartNotice("Added to cart.");
     } catch (addError) {
       setError(addError instanceof Error ? addError.message : "Could not add to cart.");
     } finally {
@@ -435,6 +488,8 @@ function ProductCatalogCard({ product, brandSlug, hasActiveBrandCart }: { produc
               event.stopPropagation();
               trackProductTeamCta(product, "catalog_card");
               if (requiresVariantSelection) {
+                onCartNoticeTone("warning");
+                onCartNotice(`Choose ${product.variantType === "shade" ? "a shade" : product.variantType === "size" || product.variantType === "weight_configure" ? "a size" : "a variant"} first.`);
                 router.push(productHref);
                 return;
               }
@@ -449,6 +504,7 @@ function ProductCatalogCard({ product, brandSlug, hasActiveBrandCart }: { produc
           >
             {busy ? "Adding..." : "Add to Cart"}
           </button>
+          {success ? <p className="text-xs font-semibold text-emerald-700">{success}</p> : null}
           {error ? <p className="text-xs font-semibold text-rose-600">{error}</p> : null}
         </div>
       </div>
@@ -522,6 +578,7 @@ function CatalogUnlockFlow({ product, teamPriceText, onClose }: { product: Brand
         throw new Error(payload.message ?? "Could not add to cart.");
       }
 
+      window.sessionStorage.setItem("grupin-cart-notice", "Added to cart.");
       router.push(`/team-room/${payload.unlock.shareCode}`);
     } catch (joinError) {
       setError(joinError instanceof Error ? joinError.message : "Could not add to cart.");
