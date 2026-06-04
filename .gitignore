@@ -13,9 +13,17 @@ playwright-report
 
 # local one-off data import/cleanup artifacts
 scripts/*.mjs
+scripts/shopify-products-scraper.mjs
+scripts/nykaa-products-scraper.mjs
+scripts/nykaa-product-details-enricher.mjs
 supabase/seeds/private_unlock_deals_seed.csv
 supabase/seeds/products*.json
 supabase/seeds/product*.json
+supabase/seeds/shopify-scrapes/
+supabase/seeds/nykaa-scrapes/
+supabase/seeds/*shopify*.json
+supabase/seeds/*nykaa*.json
+supabase/seeds/*.enriched.json
 supabase/seeds/*parse_report*.json
 supabase/seeds/*retry_report*.json
 supabase/seeds/*enrichment_report*.json

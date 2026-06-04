@@ -1,7 +1,10 @@
-import { redirect } from "next/navigation";
+import { ProductMarketplaceHome } from "@/components/product-marketplace-home";
+import { getCachedMarketplaceHomeData } from "@/lib/data";
 
-export const dynamic = "force-dynamic";
+export const revalidate = 300;
 
-export default function HomePage() {
-  redirect("/catalog/l-oreal-paris");
+export default async function HomePage() {
+  const { brands, products } = await getCachedMarketplaceHomeData();
+
+  return <ProductMarketplaceHome brands={brands} products={products} />;
 }

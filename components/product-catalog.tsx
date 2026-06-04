@@ -5,7 +5,6 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { ArrowRight, Check, CreditCard, ExternalLink, Search, ShoppingBag, Sparkles, Star, Users, X } from "lucide-react";
 import { AccountMenu } from "@/components/account-menu";
-import { CartLeafNotification } from "@/components/cart-leaf-notification";
 import { productImageUrl } from "@/lib/product-images";
 import { BrandProduct, ProductTeamCartItem, ProductTeamUnlock, ProductTeamUnlockMember } from "@/lib/types";
 import { formatCatalogPrice, productDisplayPrice, productSavings, teamPrice, teamPriceForProduct } from "@/lib/product-pricing";
@@ -115,8 +114,6 @@ export function ProductCatalog({ products, brandSlug }: ProductCatalogProps) {
     cartItems: ProductTeamCartItem[];
     currentMemberId?: string | null;
   } | null>(null);
-  const [cartNotice, setCartNotice] = useState("");
-  const [cartNoticeTone, setCartNoticeTone] = useState<"success" | "warning">("success");
   const [, setClockTick] = useState(0);
   const brandName = products[0]?.brand?.name ?? products[0]?.vendor ?? "Brand";
   const catalogHref = brandSlug ? `/catalog/${brandSlug}` : "/catalog";
@@ -211,7 +208,7 @@ export function ProductCatalog({ products, brandSlug }: ProductCatalogProps) {
             <div className="flex min-w-0 items-center gap-2">
               <div className="min-w-0">
                 <p className="truncate text-sm font-semibold">{brandName} Team Room is active</p>
-                <p className="truncate text-[11px] font-bold text-lime-950/70 sm:hidden">{activeCart.unlock.currentCount}/{activeCart.unlock.threshold} team members ready</p>
+                <p className="truncate text-[11px] font-bold text-lime-950/70 sm:hidden">{activeCart.unlock.currentCount}/{activeCart.unlock.threshold} member carts ready</p>
               </div>
             </div>
             <div className="flex shrink-0 items-center gap-2 text-xs font-semibold">
@@ -219,7 +216,7 @@ export function ProductCatalog({ products, brandSlug }: ProductCatalogProps) {
                 <ShoppingBag className="h-3.5 w-3.5" />
                 {activeCartItemCount}
               </span>
-              <span className="hidden sm:inline">{activeCart.unlock.currentCount}/{activeCart.unlock.threshold} team members ready</span>
+              <span className="hidden sm:inline">{activeCart.unlock.currentCount}/{activeCart.unlock.threshold} member carts ready</span>
               <span className="rounded-full bg-white/65 px-2 py-1">{formatRemaining(activeCart.unlock.expiresAt)}</span>
             </div>
           </div>
@@ -256,7 +253,7 @@ export function ProductCatalog({ products, brandSlug }: ProductCatalogProps) {
                   <Link
                     href={`/team-price/${featured.brand?.slug ?? brandSlug ?? "brand"}/${featured.slug}`}
                     onClick={() => trackProductTeamCta(featured, "catalog_hero")}
-                    className="inline-flex min-h-11 w-fit items-center justify-center gap-2 rounded-[10px] bg-rose-500 px-4 py-2.5 text-sm font-semibold text-white shadow-[0_12px_28px_rgba(244,63,94,0.24)] transition hover:bg-rose-600"
+                    className="inline-flex min-h-12 w-fit items-center justify-center gap-2 rounded-[12px] bg-rose-500 px-5 py-3 text-sm font-black text-white shadow-[0_16px_36px_rgba(244,63,94,0.32)] transition hover:bg-rose-600"
                   >
                     {hasActiveBrandCart ? "Add to Cart" : "Buy at Team Price"}
                     <ArrowRight className="h-4 w-4" />
@@ -304,22 +301,7 @@ export function ProductCatalog({ products, brandSlug }: ProductCatalogProps) {
 
         <div className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4">
           {filteredProducts.map((product) => (
-            <ProductCatalogCard
-              key={product.id}
-              product={product}
-              brandSlug={brandSlug}
-              hasActiveBrandCart={hasActiveBrandCart}
-              onCartUpdated={(payload) => {
-                setActiveCart({
-                  unlock: payload.unlock,
-                  members: payload.members ?? [],
-                  cartItems: payload.cartItems ?? [],
-                  currentMemberId: payload.currentMemberId ?? null,
-                });
-              }}
-              onCartNotice={setCartNotice}
-              onCartNoticeTone={setCartNoticeTone}
-            />
+            <ProductCatalogCard key={product.id} product={product} brandSlug={brandSlug} hasActiveBrandCart={hasActiveBrandCart} />
           ))}
         </div>
 
@@ -330,35 +312,11 @@ export function ProductCatalog({ products, brandSlug }: ProductCatalogProps) {
           </div>
         ) : null}
       </section>
-      <CartLeafNotification message={cartNotice} tone={cartNoticeTone} onDismiss={() => setCartNotice("")} />
     </main>
   );
 }
 
-type ProductTeamCartPayload = {
-  unlock: ProductTeamUnlock;
-  members?: ProductTeamUnlockMember[];
-  cartItems?: ProductTeamCartItem[];
-  currentMemberId?: string | null;
-  createdRoom?: boolean;
-  joinedRoom?: boolean;
-};
-
-function ProductCatalogCard({
-  product,
-  brandSlug,
-  hasActiveBrandCart,
-  onCartUpdated,
-  onCartNotice,
-  onCartNoticeTone,
-}: {
-  product: BrandProduct;
-  brandSlug?: string;
-  hasActiveBrandCart: boolean;
-  onCartUpdated: (payload: ProductTeamCartPayload) => void;
-  onCartNotice: (message: string) => void;
-  onCartNoticeTone: (tone: "success" | "warning") => void;
-}) {
+function ProductCatalogCard({ product, brandSlug, hasActiveBrandCart }: { product: BrandProduct; brandSlug?: string; hasActiveBrandCart: boolean }) {
   const router = useRouter();
   const selectedPrice = productDisplayPrice(product);
   const selectedTeamPrice = teamPriceForProduct(product);
@@ -369,7 +327,6 @@ function ProductCatalogCard({
   const [flowOpen, setFlowOpen] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
-  const [success, setSuccess] = useState("");
   const requiresVariantSelection = Boolean(variantsLabel);
 
   function openProductDetails() {
@@ -379,7 +336,6 @@ function ProductCatalogCard({
   async function addToActiveTeamCart() {
     setBusy(true);
     setError("");
-    setSuccess("");
     try {
       const response = await fetch("/api/product-team-cart", {
         method: "POST",
@@ -401,16 +357,7 @@ function ProductCatalogCard({
         throw new Error(payload.message ?? "Could not add to cart.");
       }
 
-      onCartUpdated(payload);
-      if (payload.createdRoom || payload.joinedRoom) {
-        window.sessionStorage.setItem("grupin-cart-notice", "Added to cart.");
-        router.push(`/team-room/${payload.unlock.shareCode}`);
-        return;
-      }
-
-      setSuccess("Added to cart.");
-      onCartNoticeTone("success");
-      onCartNotice("Added to cart.");
+      router.push(`/team-room/${payload.unlock.shareCode}`);
     } catch (addError) {
       setError(addError instanceof Error ? addError.message : "Could not add to cart.");
     } finally {
@@ -488,8 +435,6 @@ function ProductCatalogCard({
               event.stopPropagation();
               trackProductTeamCta(product, "catalog_card");
               if (requiresVariantSelection) {
-                onCartNoticeTone("warning");
-                onCartNotice(`Choose ${product.variantType === "shade" ? "a shade" : product.variantType === "size" || product.variantType === "weight_configure" ? "a size" : "a variant"} first.`);
                 router.push(productHref);
                 return;
               }
@@ -504,7 +449,6 @@ function ProductCatalogCard({
           >
             {busy ? "Adding..." : "Add to Cart"}
           </button>
-          {success ? <p className="text-xs font-semibold text-emerald-700">{success}</p> : null}
           {error ? <p className="text-xs font-semibold text-rose-600">{error}</p> : null}
         </div>
       </div>
@@ -540,14 +484,14 @@ function CatalogUnlockFlow({ product, teamPriceText, onClose }: { product: Brand
     {
       icon: Users,
       title: "Share and Unlock Together",
-      text: "Share the Team Room link with friends and family. When 3 team members add products, Team Price unlocks.",
+      text: "Share the Team Room link with friends and family. When 3 members add products to their carts, the team price unlocks for those carts.",
       accent: "bg-cyan-100 text-cyan-950",
       graphic: "share",
     },
     {
       icon: CreditCard,
       title: "Everyone avails the Team Discount",
-      text: "After the Team Room unlocks, the first 3 successful checkouts get the Team Price.",
+      text: "After the Team Room unlocks, eligible members can checkout their cart at the Team price.",
       accent: "bg-rose-100 text-rose-950",
       graphic: "discount",
     },
@@ -578,7 +522,6 @@ function CatalogUnlockFlow({ product, teamPriceText, onClose }: { product: Brand
         throw new Error(payload.message ?? "Could not add to cart.");
       }
 
-      window.sessionStorage.setItem("grupin-cart-notice", "Added to cart.");
       router.push(`/team-room/${payload.unlock.shareCode}`);
     } catch (joinError) {
       setError(joinError instanceof Error ? joinError.message : "Could not add to cart.");
@@ -639,7 +582,7 @@ function CatalogUnlockFlow({ product, teamPriceText, onClose }: { product: Brand
       className="fixed inset-0 z-50 overflow-x-hidden bg-slate-950/45 px-0 py-4 backdrop-blur-sm sm:grid sm:place-items-center sm:px-4"
       onClick={(event) => event.stopPropagation()}
     >
-      <div className="fixed inset-x-0 bottom-0 max-h-[calc(100dvh-1rem)] w-full max-w-full overflow-x-hidden overflow-y-auto overscroll-contain rounded-t-[16px] bg-white p-4 pb-[calc(1rem+env(safe-area-inset-bottom))] shadow-[0_-18px_60px_rgba(15,23,42,0.22)] sm:static sm:max-h-[88vh] sm:w-full sm:max-w-md sm:rounded-[12px] sm:p-5">
+      <div className="fixed inset-x-0 bottom-0 w-full max-w-full overflow-x-hidden overflow-y-auto rounded-t-[16px] bg-white p-4 shadow-[0_-18px_60px_rgba(15,23,42,0.22)] sm:static sm:max-h-[88vh] sm:w-full sm:max-w-md sm:rounded-[12px] sm:p-5">
         <div className="flex min-w-0 items-start justify-between gap-3">
           <div className="min-w-0">
             <p className="text-sm font-bold uppercase tracking-[0.16em] text-cyan-700">Team price</p>

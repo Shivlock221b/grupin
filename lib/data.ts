@@ -628,7 +628,30 @@ async function listBrandProductsWithColumns(columns: string, brandSlug?: string)
 }
 
 export async function listBrandCatalogProducts(brandSlug?: string): Promise<BrandProduct[]> {
-  return listBrandProductsWithColumns(CATALOG_PRODUCT_COLUMNS, brandSlug);
+  const supabase = createAdminClient();
+
+  if (!supabase) {
+    return [];
+  }
+
+  const brandSelect = brandSlug ? "brands!inner(id, name, slug, logo_url, website_url, created_at)" : "brands(id, name, slug, logo_url, website_url, created_at)";
+  let query = supabase
+    .from("products")
+    .select(`${CATALOG_PRODUCT_COLUMNS}, ${brandSelect}`)
+    .not("primary_image", "is", null)
+    .order("title", { ascending: true });
+
+  if (brandSlug) {
+    query = query.eq("brands.slug", brandSlug);
+  }
+
+  const { data, error } = await query;
+
+  if (error) {
+    throw error;
+  }
+
+  return ((data ?? []) as unknown as Record<string, unknown>[]).map(mapBrandProduct);
 }
 
 export const listCachedBrandProducts = unstable_cache(
@@ -645,7 +668,107 @@ export const listCachedBrandProductsByBrandSlug = unstable_cache(
 
 export const listCachedBrandCatalogProductsByBrandSlug = unstable_cache(
   async (brandSlug: string) => listBrandCatalogProducts(brandSlug),
-  ["brand-catalog-products-by-brand-v1"],
+  ["brand-catalog-products-by-brand-v2"],
+  { revalidate: 300, tags: ["brand-products"] }
+);
+
+export type MarketplaceHomeBrand = Brand & {
+  productCount: number;
+};
+
+export type MarketplaceHomeData = {
+  brands: MarketplaceHomeBrand[];
+  products: BrandProduct[];
+};
+
+async function listAllProductBrandIds(supabase: NonNullable<ReturnType<typeof createAdminClient>>) {
+  const brandIds: string[] = [];
+  const pageSize = 1000;
+  let from = 0;
+
+  while (true) {
+    const { data, error } = await supabase
+      .from("products")
+      .select("brand_id")
+      .order("id", { ascending: true })
+      .range(from, from + pageSize - 1);
+
+    if (error) {
+      throw error;
+    }
+
+    const rows = data ?? [];
+    for (const row of rows) {
+      const brandId = String(row.brand_id ?? "");
+      if (brandId) {
+        brandIds.push(brandId);
+      }
+    }
+
+    if (rows.length < pageSize) {
+      break;
+    }
+
+    from += pageSize;
+  }
+
+  return brandIds;
+}
+
+export async function getMarketplaceHomeData(): Promise<MarketplaceHomeData> {
+  const supabase = createAdminClient();
+
+  if (!supabase) {
+    return { brands: [], products: [] };
+  }
+
+  const [brandResult, productBrandIds, productResult] = await Promise.all([
+    supabase
+      .from("brands")
+      .select("id, name, slug, logo_url, website_url, created_at")
+      .order("name", { ascending: true }),
+    listAllProductBrandIds(supabase),
+    supabase
+      .from("products")
+      .select(`${CATALOG_PRODUCT_COLUMNS}, brands(id, name, slug, logo_url, website_url, created_at)`)
+      .not("primary_image", "is", null)
+      .order("rating_count", { ascending: false, nullsFirst: false })
+      .limit(24),
+  ]);
+  const { data: brandRows, error: brandError } = brandResult;
+  const { data: productRows, error: productError } = productResult;
+
+  if (brandError) {
+    throw brandError;
+  }
+
+  if (productError) {
+    throw productError;
+  }
+
+  const counts = new Map<string, number>();
+  for (const brandId of productBrandIds) {
+    counts.set(brandId, (counts.get(brandId) ?? 0) + 1);
+  }
+
+  const brands = ((brandRows ?? []) as unknown as Record<string, unknown>[])
+    .map((row) => {
+      const brand = mapBrand(row);
+      return {
+        ...brand,
+        productCount: counts.get(brand.id) ?? 0,
+      };
+    })
+    .filter((brand) => brand.productCount > 0);
+
+  const products = ((productRows ?? []) as unknown as Record<string, unknown>[]).map(mapBrandProduct);
+
+  return { brands, products };
+}
+
+export const getCachedMarketplaceHomeData = unstable_cache(
+  async () => getMarketplaceHomeData(),
+  ["marketplace-home-data-v2"],
   { revalidate: 300, tags: ["brand-products"] }
 );
 

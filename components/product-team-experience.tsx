@@ -139,7 +139,7 @@ export function ProductTeamExperience({ product, initialUnlock = null, initialMe
   const [shareFeedback, setShareFeedback] = useState("");
   const [, setClockTick] = useState(0);
   const displayVariant = product.variants.find((variant) => variantKey(variant) === selectedVariantKey) ?? defaultVariant;
-  const selectedPrice = displayVariant?.price ?? product.priceMax ?? product.priceMin;
+  const selectedPrice = displayVariant?.price ?? productDisplayPrice(product);
   const discountPercent = Math.max(unlock?.discountPercent ?? 0, effectiveTeamDiscountPercent(product));
   const selectedTeamPrice = teamPrice(selectedPrice, discountPercent);
   const savings = selectedPrice === null || selectedPrice === undefined || selectedTeamPrice === null ? null : Math.max(0, Math.round(selectedPrice - selectedTeamPrice));
