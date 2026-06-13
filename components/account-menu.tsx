@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
-import { LogOut, Package, Users, User, UserCircle } from "lucide-react";
+import { LogOut, User, UserCircle } from "lucide-react";
 import { AccountProfile } from "@/lib/types";
 
 export function AccountMenu() {
@@ -40,13 +40,13 @@ export function AccountMenu() {
     await fetch("/api/account/logout", { method: "POST" });
     setProfile(null);
     setOpen(false);
-    window.location.href = "/catalog/l-oreal-paris";
+    window.location.href = "/";
   }
 
   if (!profile) {
     return (
       <Link
-        href="/login"
+        href="/login?next=/"
         aria-label="Login"
         className="grid h-11 w-11 shrink-0 place-items-center rounded-full border border-slate-200 bg-white text-slate-800 transition hover:bg-slate-50"
       >
@@ -75,14 +75,6 @@ export function AccountMenu() {
           <Link href="/account/profile" onClick={() => setOpen(false)} className="flex items-center gap-3 px-4 py-3 text-sm font-semibold transition hover:bg-slate-50">
             <User className="h-4 w-4" />
             Account details
-          </Link>
-          <Link href="/account/rooms" onClick={() => setOpen(false)} className="flex items-center gap-3 px-4 py-3 text-sm font-semibold transition hover:bg-slate-50">
-            <Users className="h-4 w-4" />
-            Team Rooms
-          </Link>
-          <Link href="/account/orders" onClick={() => setOpen(false)} className="flex items-center gap-3 px-4 py-3 text-sm font-semibold transition hover:bg-slate-50">
-            <Package className="h-4 w-4" />
-            Orders
           </Link>
           <button onClick={logout} className="flex w-full items-center gap-3 border-t border-slate-100 px-4 py-3 text-left text-sm font-semibold text-rose-700 transition hover:bg-rose-50">
             <LogOut className="h-4 w-4" />

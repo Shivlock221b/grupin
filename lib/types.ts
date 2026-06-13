@@ -150,6 +150,9 @@ export type BrandProduct = {
   sourceProductTitle?: string | null;
   sourceSlug?: string | null;
   sourceUrl?: string | null;
+  sourcePlatform?: "nykaa" | "tira" | string | null;
+  canonicalUrl?: string | null;
+  externalProductId?: string | null;
   mrp?: number | null;
   salePrice?: number | null;
   sourceDiscountPercent?: number | null;
@@ -167,6 +170,63 @@ export type BrandProduct = {
   publishedAt?: string | null;
   createdAt?: string;
   updatedAt?: string;
+};
+
+export type ProductPoolStatus = "pooling" | "unlocked" | "closed" | "expired";
+
+export type ProductPool = {
+  id: string;
+  productId: string;
+  poolKey?: string | null;
+  status: ProductPoolStatus;
+  unlockThreshold: number;
+  checkoutThreshold: number;
+  currentJoinCount: number;
+  successfulCheckoutCount: number;
+  sourceSnapshot?: Record<string, unknown>;
+  unlockPrice?: number | null;
+  mrp?: number | null;
+  currentMarketPrice?: number | null;
+  startsAt?: string | null;
+  expiresAt?: string | null;
+  unlockedAt?: string | null;
+  closedAt?: string | null;
+  createdAt?: string;
+  updatedAt?: string;
+};
+
+export type ProductPoolMember = {
+  id: string;
+  poolId: string;
+  profileId: string;
+  cartItemId?: string | null;
+  status: "joined" | "checked_out" | "cancelled";
+  joinedAt: string;
+  checkedOutAt?: string | null;
+  createdAt?: string;
+  updatedAt?: string;
+};
+
+export type ProductPoolCartItem = {
+  id: string;
+  poolId: string;
+  productId: string;
+  profileId: string;
+  quantity: number;
+  status: "active" | "checked_out" | "removed";
+  productSnapshot: Record<string, unknown>;
+  pool?: ProductPool;
+  product?: BrandProduct | null;
+  createdAt?: string;
+  updatedAt?: string;
+};
+
+export type TrendingProductPool = ProductPool & {
+  joinProgressPercentage: number;
+  checkoutProgressPercentage: number;
+  userHasJoined?: boolean;
+  alternatives?: TrendingProductPool[];
+  product: BrandProduct;
 };
 
 export type ProductTeamUnlock = {

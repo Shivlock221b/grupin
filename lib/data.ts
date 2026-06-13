@@ -39,6 +39,9 @@ import {
   ProductTeamOrder,
   ProductTeamCheckoutProgress,
   ProductTeamOrderUpdate,
+  ProductPool,
+  ProductPoolCartItem,
+  TrendingProductPool,
   Reservation,
   UserDealInterest,
 } from "@/lib/types";
@@ -300,6 +303,9 @@ function mapBrandProduct(row: Record<string, unknown>): BrandProduct {
     sourceProductTitle: (row.source_product_title as string | null | undefined) ?? null,
     sourceSlug: (row.source_slug as string | null | undefined) ?? null,
     sourceUrl,
+    sourcePlatform: (row.source_platform as string | null | undefined) ?? null,
+    canonicalUrl: (row.canonical_url as string | null | undefined) ?? null,
+    externalProductId: (row.external_product_id as string | null | undefined) ?? null,
     mrp: row.mrp === null || row.mrp === undefined ? null : Number(row.mrp),
     salePrice: row.sale_price === null || row.sale_price === undefined ? null : Number(row.sale_price),
     sourceDiscountPercent: row.source_discount_percent === null || row.source_discount_percent === undefined ? null : Number(row.source_discount_percent),
@@ -320,12 +326,15 @@ function mapBrandProduct(row: Record<string, unknown>): BrandProduct {
   };
 }
 
-const PRODUCT_COLUMNS = "id, brand_id, title, slug, vendor, primary_image, image_urls, variants, tags, product_types, price_min, price_max, source_product_ids, source_handles, source_files, source_product_name, source_product_title, source_slug, source_url, mrp, sale_price, source_discount_percent, rating, rating_count, in_stock, variant_count, variant_type, primary_categories, description, how_to_use, ingredients, review_count, detail_image_url, published_at, created_at, updated_at";
-const CATALOG_PRODUCT_COLUMNS = "id, brand_id, title, slug, vendor, primary_image, tags, product_types, price_min, price_max, source_handles, source_url, mrp, sale_price, source_discount_percent, rating, rating_count, in_stock, variant_count, variant_type, created_at, updated_at";
+const PRODUCT_COLUMNS = "id, brand_id, title, slug, vendor, primary_image, image_urls, variants, tags, product_types, price_min, price_max, source_product_ids, source_handles, source_files, source_product_name, source_product_title, source_slug, source_url, source_platform, canonical_url, external_product_id, mrp, sale_price, source_discount_percent, rating, rating_count, in_stock, variant_count, variant_type, primary_categories, description, how_to_use, ingredients, review_count, detail_image_url, published_at, created_at, updated_at";
+const CATALOG_PRODUCT_COLUMNS = "id, brand_id, title, slug, vendor, primary_image, tags, product_types, price_min, price_max, source_handles, source_url, source_platform, canonical_url, external_product_id, mrp, sale_price, source_discount_percent, rating, rating_count, in_stock, variant_count, variant_type, created_at, updated_at";
+const PRODUCT_POOL_PRODUCT_COLUMNS = "id, brand_id, title, slug, vendor, primary_image, image_urls, variants, tags, product_types, price_min, price_max, source_product_ids, source_handles, source_files, source_product_name, source_product_title, source_slug, source_url, mrp, sale_price, source_discount_percent, rating, rating_count, in_stock, variant_count, variant_type, primary_categories, description, how_to_use, ingredients, review_count, detail_image_url, published_at, created_at, updated_at";
 const PRODUCT_TEAM_UNLOCK_COLUMNS = "id, product_id, brand_id, owner_profile_id, share_code, threshold, discount_percent, selected_variant, current_count, member_count, room_scope, status, expires_at, closed_at, created_at";
 const PRODUCT_TEAM_MEMBER_COLUMNS = "id, unlock_id, product_id, brand_id, profile_id, selected_variant, phone, role, cart_status, room_scope, cart_checked_out_at, created_at";
 const PRODUCT_TEAM_CART_ITEM_COLUMNS = "id, unlock_id, member_id, product_id, brand_id, selected_variant, variant_key, quantity, mrp_snapshot, team_price_snapshot, discount_percent_snapshot, product_snapshot, created_at, updated_at";
 const PRODUCT_TEAM_ORDER_COLUMNS = "id, unlock_id, product_id, brand_id, profile_id, cart_member_id, selected_variant, items, buyer_name, buyer_email, buyer_phone, delivery_address, amount_paid, razorpay_payment_id, razorpay_order_id, razorpay_signature, status, created_at, updated_at";
+const PRODUCT_POOL_COLUMNS = "id, product_id, pool_key, status, unlock_threshold, checkout_threshold, current_join_count, successful_checkout_count, source_snapshot, unlock_price, mrp, current_market_price, starts_at, expires_at, unlocked_at, closed_at, created_at, updated_at";
+const PRODUCT_POOL_CART_ITEM_COLUMNS = "id, pool_id, product_id, profile_id, quantity, status, product_snapshot, created_at, updated_at";
 
 function mapProductTeamUnlock(row: Record<string, unknown>): ProductTeamUnlock {
   return {
@@ -415,6 +424,92 @@ function mapProductTeamOrderUpdate(row: Record<string, unknown>): ProductTeamOrd
     remark: (row.remark as string | null | undefined) ?? null,
     createdBy: (row.created_by as string | null | undefined) ?? null,
     createdAt: String(row.created_at),
+  };
+}
+
+function percent(current: number, threshold: number) {
+  if (!threshold || threshold <= 0) return 0;
+  return Math.min(100, Math.round((current / threshold) * 100));
+}
+
+function trendTarget(count: number) {
+  if (count <= 50) return 50;
+  let target = 100;
+  while (count > target) target *= 2;
+  return target;
+}
+
+function trendingProductFromPoolProduct(pool: ProductPool, product: BrandProduct): BrandProduct {
+  const snapshot = pool.sourceSnapshot ?? {};
+  return {
+    ...product,
+    title: typeof snapshot.title === "string" && snapshot.title.trim() ? snapshot.title : product.title,
+    primaryImage: typeof snapshot.imageUrl === "string" && snapshot.imageUrl.trim() ? snapshot.imageUrl : product.primaryImage,
+    sourceUrl: typeof snapshot.sourceUrl === "string" && snapshot.sourceUrl.trim() ? snapshot.sourceUrl : product.sourceUrl,
+    productUrl: typeof snapshot.sourceUrl === "string" && snapshot.sourceUrl.trim() ? snapshot.sourceUrl : product.productUrl,
+    mrp: typeof snapshot.mrp === "number" ? snapshot.mrp : product.mrp,
+    salePrice: typeof snapshot.currentPrice === "number" ? snapshot.currentPrice : product.salePrice,
+  };
+}
+
+function buildTrendingProductPool(row: Record<string, unknown>, productRow: Record<string, unknown>, joinCountOverride?: number): TrendingProductPool {
+  const pool = mapProductPool(row);
+  const product = mapBrandProduct(productRow);
+  const trendCount = joinCountOverride ?? pool.currentJoinCount;
+
+  return {
+    ...pool,
+    currentJoinCount: trendCount,
+    unlockThreshold: trendTarget(trendCount),
+    joinProgressPercentage: percent(trendCount, trendTarget(trendCount)),
+    checkoutProgressPercentage: percent(pool.successfulCheckoutCount, pool.checkoutThreshold),
+    userHasJoined: false,
+    alternatives: [],
+    product: trendingProductFromPoolProduct(pool, product),
+  };
+}
+
+function mapProductPool(row: Record<string, unknown>): ProductPool {
+  const expiresAt = (row.expires_at as string | null | undefined) ?? null;
+  const status = row.status as ProductPool["status"];
+
+  return {
+    id: String(row.id),
+    productId: String(row.product_id),
+    poolKey: (row.pool_key as string | null | undefined) ?? null,
+    status,
+    unlockThreshold: Number(row.unlock_threshold ?? 50),
+    checkoutThreshold: Number(row.checkout_threshold ?? 50),
+    currentJoinCount: Number(row.current_join_count ?? 0),
+    successfulCheckoutCount: Number(row.successful_checkout_count ?? 0),
+    sourceSnapshot: row.source_snapshot && typeof row.source_snapshot === "object" ? row.source_snapshot as Record<string, unknown> : {},
+    unlockPrice: row.unlock_price === null || row.unlock_price === undefined ? null : Number(row.unlock_price),
+    mrp: row.mrp === null || row.mrp === undefined ? null : Number(row.mrp),
+    currentMarketPrice: row.current_market_price === null || row.current_market_price === undefined ? null : Number(row.current_market_price),
+    startsAt: (row.starts_at as string | null | undefined) ?? null,
+    expiresAt,
+    unlockedAt: (row.unlocked_at as string | null | undefined) ?? null,
+    closedAt: (row.closed_at as string | null | undefined) ?? null,
+    createdAt: row.created_at ? String(row.created_at) : undefined,
+    updatedAt: row.updated_at ? String(row.updated_at) : undefined,
+  };
+}
+
+function mapProductPoolCartItem(row: Record<string, unknown>): ProductPoolCartItem {
+  const poolRow = relationOne(row.product_pools);
+  const productRow = relationOne(row.products);
+  return {
+    id: String(row.id),
+    poolId: String(row.pool_id),
+    productId: String(row.product_id),
+    profileId: String(row.profile_id),
+    quantity: Number(row.quantity ?? 1),
+    status: row.status as ProductPoolCartItem["status"],
+    productSnapshot: row.product_snapshot && typeof row.product_snapshot === "object" ? row.product_snapshot as Record<string, unknown> : {},
+    pool: poolRow ? mapProductPool(poolRow) : undefined,
+    product: productRow ? mapBrandProduct(productRow) : null,
+    createdAt: row.created_at ? String(row.created_at) : undefined,
+    updatedAt: row.updated_at ? String(row.updated_at) : undefined,
   };
 }
 
@@ -772,6 +867,204 @@ export const getCachedMarketplaceHomeData = unstable_cache(
   { revalidate: 300, tags: ["brand-products"] }
 );
 
+export type ProductPoolTimeFilter = "all" | "today" | "week" | "new";
+
+export type ProductPoolTrendFilters = {
+  category?: string | null;
+  time?: ProductPoolTimeFilter;
+};
+
+function trendSinceDate(time?: ProductPoolTimeFilter) {
+  if (time === "new") {
+    return null;
+  }
+
+  const now = new Date();
+  if (time === "today") {
+    const dayMs = 24 * 60 * 60 * 1000;
+    const istOffsetMs = 5.5 * 60 * 60 * 1000;
+    const istDayStartUtcMs = Math.floor((now.getTime() + istOffsetMs) / dayMs) * dayMs - istOffsetMs;
+    return new Date(istDayStartUtcMs).toISOString();
+  }
+
+  if (time === "week") {
+    return new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000).toISOString();
+  }
+
+  return null;
+}
+
+function normalizeCategory(value?: string | null) {
+  return String(value ?? "").trim().toLowerCase();
+}
+
+export async function listTrendingProductPools(profileId?: string | null, limit = 12, filters: ProductPoolTrendFilters = {}): Promise<TrendingProductPool[]> {
+  const supabase = createAdminClient();
+
+  if (!supabase) {
+    return [];
+  }
+
+  const { data, error } = await supabase
+    .from("product_pools")
+    .select(`${PRODUCT_POOL_COLUMNS}, products(${PRODUCT_POOL_PRODUCT_COLUMNS}, brands(id, name, slug, logo_url, website_url, created_at))`)
+    .in("status", ["pooling", "unlocked"])
+    .order("status", { ascending: false })
+    .order("current_join_count", { ascending: false })
+    .order("created_at", { ascending: false })
+    .limit(Math.max(limit * 12, 120));
+
+  if (error) {
+    console.warn("Could not load product pools for homepage.", error);
+    return [];
+  }
+
+  const since = trendSinceDate(filters.time);
+  const sortByNewest = filters.time === "new";
+  const categoryFilter = normalizeCategory(filters.category);
+  const rows = (data ?? []) as unknown as Record<string, unknown>[];
+  const poolIds = rows.map((row) => String(row.id));
+  const cartCounts = new Map<string, number>();
+
+  if (poolIds.length) {
+    let cartCountQuery = supabase
+      .from("product_pool_cart_items")
+      .select("pool_id")
+      .in("pool_id", poolIds)
+      .eq("status", "active");
+
+    if (since) {
+      cartCountQuery = cartCountQuery.gte("updated_at", since);
+    }
+
+    const { data: cartRows, error: cartCountError } = await cartCountQuery;
+
+    if (cartCountError) {
+      console.warn("Could not load product pool cart counts.", cartCountError);
+    } else {
+      for (const row of cartRows ?? []) {
+        const poolId = String(row.pool_id);
+        cartCounts.set(poolId, (cartCounts.get(poolId) ?? 0) + 1);
+      }
+    }
+  }
+
+  const pools: TrendingProductPool[] = rows
+    .flatMap((row) => {
+      const productRow = relationOne(row.products);
+      if (!productRow) return [];
+      const pool = mapProductPool(row);
+      const snapshot = pool.sourceSnapshot ?? {};
+      const category = typeof snapshot.category === "string" ? snapshot.category : null;
+      if (categoryFilter && normalizeCategory(category) !== categoryFilter) {
+        return [];
+      }
+      const trendCount = cartCounts.get(pool.id) ?? 0;
+      return [buildTrendingProductPool(row, productRow, trendCount)];
+    })
+    .filter((pool) => pool.status !== "closed" && pool.status !== "expired" && pool.currentJoinCount > 0)
+    .sort((a, b) => {
+      if (sortByNewest) {
+        return new Date(b.createdAt ?? 0).getTime() - new Date(a.createdAt ?? 0).getTime();
+      }
+      return b.currentJoinCount - a.currentJoinCount || b.joinProgressPercentage - a.joinProgressPercentage;
+    })
+    .slice(0, limit);
+
+  const visiblePoolIds = pools.map((pool) => pool.id);
+
+  if (visiblePoolIds.length) {
+    const { data: alternativeRows, error: alternativesError } = await supabase
+      .from("product_pool_alternatives")
+      .select("pool_id, alternative_pool_id, created_at")
+      .in("pool_id", visiblePoolIds)
+      .order("created_at", { ascending: false });
+
+    if (alternativesError) {
+      console.warn("Could not load product pool alternatives.", alternativesError);
+    } else {
+      const alternativePoolIds = [...new Set((alternativeRows ?? []).map((row) => String(row.alternative_pool_id)))];
+      if (alternativePoolIds.length) {
+        const { data: alternativePools, error: alternativePoolError } = await supabase
+          .from("product_pools")
+          .select(`${PRODUCT_POOL_COLUMNS}, products(${PRODUCT_POOL_PRODUCT_COLUMNS}, brands(id, name, slug, logo_url, website_url, created_at))`)
+          .in("id", alternativePoolIds);
+
+        if (alternativePoolError) {
+          console.warn("Could not load alternative product pools.", alternativePoolError);
+        } else {
+          const alternativeMap = new Map<string, TrendingProductPool>();
+          for (const row of (alternativePools ?? []) as unknown as Record<string, unknown>[]) {
+            const productRow = relationOne(row.products);
+            if (!productRow) continue;
+            const alternative = buildTrendingProductPool(row, productRow);
+            alternativeMap.set(alternative.id, alternative);
+          }
+
+          const alternativesByPool = new Map<string, TrendingProductPool[]>();
+          for (const row of alternativeRows ?? []) {
+            const poolId = String(row.pool_id);
+            const alternative = alternativeMap.get(String(row.alternative_pool_id));
+            if (!alternative) continue;
+            const items = alternativesByPool.get(poolId) ?? [];
+            if (items.length < 6) {
+              items.push(alternative);
+              alternativesByPool.set(poolId, items);
+            }
+          }
+
+          pools.forEach((pool) => {
+            pool.alternatives = alternativesByPool.get(pool.id) ?? [];
+          });
+        }
+      }
+    }
+  }
+
+  if (profileId && pools.length) {
+    const { data: memberships, error: membershipError } = await supabase
+      .from("product_pool_members")
+      .select("pool_id")
+      .eq("profile_id", profileId)
+      .in("status", ["joined", "checked_out"])
+      .in("pool_id", pools.map((pool) => pool.id));
+
+    if (membershipError) {
+      console.warn("Could not load product pool memberships for homepage.", membershipError);
+      return pools;
+    }
+
+    const joinedIds = new Set((memberships ?? []).map((row) => String(row.pool_id)));
+    pools.forEach((pool) => {
+      pool.userHasJoined = joinedIds.has(pool.id);
+    });
+  }
+
+  return pools;
+}
+
+export async function listProductPoolCartItems(profileId: string): Promise<ProductPoolCartItem[]> {
+  const supabase = createAdminClient();
+
+  if (!supabase) {
+    return [];
+  }
+
+  const { data, error } = await supabase
+    .from("product_pool_cart_items")
+    .select(`${PRODUCT_POOL_CART_ITEM_COLUMNS}, product_pools(${PRODUCT_POOL_COLUMNS}), products(${PRODUCT_POOL_PRODUCT_COLUMNS}, brands(id, name, slug, logo_url, website_url, created_at))`)
+    .eq("profile_id", profileId)
+    .neq("status", "removed")
+    .order("created_at", { ascending: false });
+
+  if (error) {
+    console.warn("Could not load product pool cart items.", error);
+    return [];
+  }
+
+  return ((data ?? []) as unknown as Record<string, unknown>[]).map(mapProductPoolCartItem);
+}
+
 export async function listCatalogBrandSlugs(): Promise<string[]> {
   const supabase = createAdminClient();
 
@@ -841,7 +1134,7 @@ export async function getBrandProductBySlugs(brandSlug: string, productSlug: str
 
 export const getCachedBrandProductBySlugs = unstable_cache(
   async (brandSlug: string, productSlug: string) => getBrandProductBySlugs(brandSlug, productSlug),
-  ["brand-product-by-slugs-v1"],
+  ["brand-product-by-slugs-v2"],
   { revalidate: 300, tags: ["brand-products"] }
 );
 

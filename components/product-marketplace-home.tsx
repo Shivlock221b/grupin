@@ -1,74 +1,178 @@
 "use client";
 
+import { FormEvent, useEffect, useState, useTransition } from "react";
 import Link from "next/link";
-import { Check, CreditCard, Link2, Share2, ShoppingBag, Star, Users } from "lucide-react";
+import { useRouter, useSearchParams } from "next/navigation";
+import { ArrowRight, CheckCircle2, Copy, ExternalLink, Filter, Link2, Loader2, Search, Share2, ShoppingBag, Sparkles, Star, TrendingUp, Users, X } from "lucide-react";
 import { AccountMenu } from "@/components/account-menu";
-import { BrandProduct } from "@/lib/types";
-import { formatCatalogPrice, productDisplayPrice, productSavings, teamPriceForProduct } from "@/lib/product-pricing";
+import { productCategoryOptions } from "@/lib/product-category-inference";
+import { TrendingProductPool } from "@/lib/types";
+import { formatCatalogPrice } from "@/lib/product-pricing";
 import { productImageUrl } from "@/lib/product-images";
 
-type MarketplaceBrand = {
-  id: string;
-  name: string;
-  slug: string;
-  logoUrl?: string | null;
-  productCount: number;
+type ProductMarketplaceHomeProps = {
+  pools: TrendingProductPool[];
+  selectedCategory?: string | null;
+  selectedTime?: "all" | "today" | "week" | "new";
+  nextPage?: number;
+  hasMore?: boolean;
 };
 
-const brandAccents = [
-  "bg-rose-100 text-rose-700 ring-rose-200",
-  "bg-cyan-100 text-cyan-800 ring-cyan-200",
-  "bg-amber-100 text-amber-800 ring-amber-200",
-  "bg-lime-100 text-lime-800 ring-lime-200",
-  "bg-violet-100 text-violet-800 ring-violet-200",
-  "bg-emerald-100 text-emerald-800 ring-emerald-200",
+const categoryOptions = [...productCategoryOptions];
+const timeOptions = [
+  { label: "All time", value: "all" },
+  { label: "Today", value: "today" },
+  { label: "This week", value: "week" },
+  { label: "Newly Added", value: "new" },
+] as const;
+const homeInstructionSteps = ["Search a product", "Add it to your cart", "Watch products trend in real time"];
+const sheetInstructionSteps = [
+  "Add products you are considering to your cart.",
+  "See how many other carts contain the same product.",
+  "Use the trending count to decide what is worth waiting for.",
 ];
+type NykaaSearchResult = {
+  id: string;
+  title: string;
+  url: string;
+  imageUrl: string | null;
+  mrp: number | null;
+  salePrice: number | null;
+  rating: number | null;
+  ratingCount: number | null;
+};
 
-function brandInitials(name: string) {
-  return name
-    .split(/\s+/)
-    .filter(Boolean)
-    .slice(0, 2)
-    .map((word) => word[0]?.toUpperCase())
-    .join("") || "G";
+function poolCta(pool: TrendingProductPool) {
+  if (pool.status === "closed") return "Closed";
+  if (pool.status === "expired") return "Expired";
+  if (pool.userHasJoined) return "View Cart";
+  return "Add to Cart";
+}
+
+function Progress({ value, tone = "rose" }: { value: number; tone?: "rose" | "emerald" }) {
+  return (
+    <div className="h-2 overflow-hidden rounded-full bg-slate-100">
+      <div className={`h-full rounded-full ${tone === "emerald" ? "bg-emerald-500" : "bg-rose-500"}`} style={{ width: `${Math.min(100, Math.max(0, value))}%` }} />
+    </div>
+  );
 }
 
 function formatCount(count?: number | null) {
-  if (!count) {
-    return "";
-  }
-
+  if (!count) return "";
   return count >= 1000 ? `${(count / 1000).toFixed(count >= 10_000 ? 0 : 1)}k` : count.toLocaleString("en-IN");
 }
 
-function isFaviconLogo(url?: string | null) {
-  if (!url) {
-    return false;
-  }
-
-  return /google\.com\/s2\/favicons|favicon|\/ip3\//i.test(url);
+function trendTarget(count: number) {
+  if (count <= 50) return 50;
+  let target = 100;
+  while (count > target) target *= 2;
+  return target;
 }
 
-function MarketplaceProductCard({ product }: { product: BrandProduct }) {
-  const price = productDisplayPrice(product);
-  const teamPrice = teamPriceForProduct(product);
-  const savings = productSavings(product);
-  const href = `/team-price/${product.brand?.slug ?? "brand"}/${product.slug}`;
+function poolDisplayValues(pool: TrendingProductPool) {
+  const product = pool.product;
+  const price = pool.currentMarketPrice ?? product.salePrice ?? product.mrp ?? product.priceMin;
+  const productUrl = product.productUrl ?? product.sourceUrl ?? product.canonicalUrl ?? "";
+
+  return { price, productUrl };
+}
+
+function filterHref(category: string | null, time: string, page?: number) {
+  const params = new URLSearchParams();
+  if (category) params.set("category", category);
+  if (time !== "all") params.set("time", time);
+  if (page && page > 1) params.set("page", String(page));
+  const query = params.toString();
+  return query ? `/?${query}` : "/";
+}
+
+function LogoMark() {
+  return (
+    <Link href="/" aria-label="Home" className="grid h-11 w-11 place-items-center overflow-hidden rounded-full bg-white shadow-sm ring-1 ring-slate-200 transition hover:ring-cyan-200">
+      <img src="/icon.svg" alt="" className="h-8 w-8" />
+    </Link>
+  );
+}
+
+function InstructionMarquee({ steps, compact = false }: { steps: string[]; compact?: boolean }) {
+  return (
+    <div className="min-w-0 overflow-hidden [mask-image:linear-gradient(to_right,transparent,black_10%,black_90%,transparent)]">
+      <style>{`
+        @keyframes instructionMarquee {
+          from { transform: translateX(0); }
+          to { transform: translateX(-50%); }
+        }
+        .instruction-marquee-track {
+          animation: instructionMarquee 18s linear infinite;
+        }
+        .instruction-marquee-track:hover {
+          animation-play-state: paused;
+        }
+        @media (prefers-reduced-motion: reduce) {
+          .instruction-marquee-track {
+            animation: none;
+          }
+        }
+      `}</style>
+      <div className="instruction-marquee-track flex w-max max-w-none gap-3 py-1">
+        {[...steps, ...steps].map((step, index) => (
+          <div
+            key={`${step}-${index}`}
+            className={`flex shrink-0 items-center gap-3 rounded-[16px] bg-white/80 ${compact ? "w-64 p-3" : "w-72 p-4"}`}
+          >
+            <div className={`${compact ? "h-8 w-8" : "h-10 w-10"} flex shrink-0 items-center justify-center rounded-full bg-rose-500 text-sm font-semibold text-white`}>
+              {(index % steps.length) + 1}
+            </div>
+            <p className={`${compact ? "text-xs leading-4" : "text-sm"} font-semibold text-slate-800`}>{step}</p>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function TrendingPoolCard({ pool, onOpenShare }: { pool: TrendingProductPool; onOpenShare: (pool: TrendingProductPool) => void }) {
+  const router = useRouter();
+  const product = pool.product;
+  const { price, productUrl } = poolDisplayValues(pool);
+  const nextTrendTarget = trendTarget(pool.currentJoinCount);
+  const trendProgress = Math.min(100, Math.round((pool.currentJoinCount / nextTrendTarget) * 100));
+  const disabled = pool.status === "closed" || pool.status === "expired";
+
+  function act() {
+    if (disabled) return;
+    if (pool.userHasJoined) {
+      router.push("/cart");
+      return;
+    }
+
+    onOpenShare(pool);
+  }
 
   return (
-    <div className="overflow-hidden rounded-[16px] border border-slate-200 bg-white shadow-[0_14px_40px_rgba(15,118,110,0.06)] transition hover:-translate-y-0.5 hover:border-cyan-200 hover:shadow-[0_18px_50px_rgba(15,118,110,0.12)]">
-      <Link href={href} className="block">
-        <div className="relative aspect-square overflow-hidden bg-[#f7faf5]">
-          <img src={productImageUrl(product.primaryImage, 700)} alt="" loading="lazy" decoding="async" className="h-full w-full object-contain p-3 transition duration-300 hover:scale-105 sm:p-5" />
-        </div>
-      </Link>
+    <article className="group overflow-hidden rounded-[16px] border border-slate-200 bg-white shadow-[0_14px_40px_rgba(15,118,110,0.06)] transition hover:-translate-y-0.5 hover:border-cyan-200 hover:shadow-[0_18px_50px_rgba(15,118,110,0.12)]">
+      <button type="button" onClick={() => onOpenShare(pool)} className="relative block aspect-square w-full overflow-hidden bg-[#f7faf5] text-left">
+        <img src={productImageUrl(product.primaryImage, 700)} alt="" className="h-full w-full object-contain p-3 transition duration-300 group-hover:scale-105 sm:p-5" loading="lazy" />
+        {productUrl ? (
+          <span className="absolute right-2 top-2 inline-flex h-8 w-8 items-center justify-center rounded-full bg-white/90 text-slate-700 shadow-sm">
+            <ExternalLink className="h-4 w-4" />
+          </span>
+        ) : null}
+      </button>
       <div className="p-3 sm:p-4">
-        <p className="mb-1 line-clamp-1 text-[11px] font-semibold uppercase tracking-[0.12em] text-cyan-700">
-          {product.brand?.name ?? product.vendor ?? "GruPin"}
-        </p>
-        <Link href={href} className="line-clamp-2 min-h-10 text-sm font-semibold leading-5 text-slate-950">
-          {product.title}
-        </Link>
+        <div className="min-w-0">
+          <div className="mb-1 flex items-center justify-between gap-2">
+            <p className="line-clamp-1 text-[11px] font-semibold uppercase tracking-[0.12em] text-cyan-700">{product.brand?.name ?? product.vendor ?? "Product"}</p>
+            <span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-emerald-50 px-2 py-1 text-[10px] font-semibold text-emerald-800">
+              <TrendingUp className="h-3 w-3" />
+              Trending
+            </span>
+          </div>
+          <button type="button" onClick={() => onOpenShare(pool)} className="line-clamp-2 min-h-10 text-left text-sm font-semibold leading-5 text-slate-950">
+            {product.title}
+          </button>
+        </div>
+
         <div className="mt-2 flex min-h-7 flex-wrap items-center gap-2">
           {product.rating ? (
             <div className="inline-flex items-center gap-1 rounded-full bg-emerald-600 px-2 py-1 text-xs font-bold text-white">
@@ -83,512 +187,720 @@ function MarketplaceProductCard({ product }: { product: BrandProduct }) {
             </span>
           ))}
         </div>
+
         <div className="mt-3 rounded-[12px] bg-slate-50 p-2.5 sm:p-3">
           <div className="flex items-start justify-between gap-3">
             <div className="min-w-0">
-              <p className="text-xs font-semibold text-emerald-700">Team price</p>
+              <p className="text-xs font-semibold text-emerald-700">Price on Nykaa</p>
               <div className="mt-1 flex flex-wrap items-baseline gap-x-3 gap-y-1">
-                <p className="text-xl font-semibold text-slate-950">{formatCatalogPrice(teamPrice)}</p>
-                <p className="text-sm font-semibold text-slate-500">
-                  MRP <span className="line-through decoration-rose-400 decoration-2">{formatCatalogPrice(price)}</span>
-                </p>
+                <p className="text-xl font-semibold text-slate-950">{formatCatalogPrice(price ? Math.round(Number(price)) : null)}</p>
               </div>
             </div>
-            {savings ? (
-              <div className="shrink-0 rounded-full bg-rose-50 px-2.5 py-1.5 text-right text-xs font-black leading-tight text-rose-700">
-                Save<br />{formatCatalogPrice(savings)}
-              </div>
-            ) : null}
+            <button
+              type="button"
+              onClick={() => onOpenShare(pool)}
+              aria-label="Share product"
+              className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-white text-slate-700 shadow-sm ring-1 ring-slate-200 transition hover:bg-cyan-50 hover:text-cyan-800 hover:ring-cyan-200"
+            >
+              <Share2 className="h-4 w-4" />
+            </button>
           </div>
         </div>
-        <Link href={href} className="mt-3 inline-flex h-10 w-full items-center justify-center rounded-[10px] bg-rose-500 px-2 text-xs font-semibold text-white transition hover:bg-rose-600 sm:h-11 sm:px-3 sm:text-sm">
-          Buy at Team Price
-        </Link>
+
+        <div className="mt-3 space-y-2">
+          <div className="flex items-center justify-between text-xs font-semibold text-slate-600">
+            <span>{pool.currentJoinCount} carts tracking this</span>
+            {/* <span>{nextTrendTarget}</span> */}
+          </div>
+          <Progress value={trendProgress} tone="emerald" />
+        </div>
+
+        <button
+          type="button"
+          onClick={act}
+          disabled={disabled}
+          className="mt-3 inline-flex h-10 w-full items-center justify-center gap-2 rounded-[10px] bg-rose-500 px-2 text-xs font-semibold text-white transition hover:bg-rose-600 disabled:bg-slate-200 disabled:text-slate-500 sm:h-11 sm:px-3 sm:text-sm"
+        >
+          {pool.userHasJoined ? <ShoppingBag className="h-4 w-4" /> : <Users className="h-4 w-4" />}
+          {poolCta(pool)}
+        </button>
       </div>
-    </div>
+    </article>
   );
 }
 
-function HeroAnimation() {
-  const activity = [
-    "A***5 added Cleanser",
-    "M***8 added Serum",
-    "S***1 joined room",
-  ];
+function PoolShareSheet({ pool, onClose, onOpenPool }: { pool: TrendingProductPool; onClose: () => void; onOpenPool: (pool: TrendingProductPool) => void }) {
+  const router = useRouter();
+  const [busy, startTransition] = useTransition();
+  const [copied, setCopied] = useState(false);
+  const [error, setError] = useState("");
+  const [alternativeUrl, setAlternativeUrl] = useState("");
+  const [alternativeSearch, setAlternativeSearch] = useState("");
+  const [alternativeSearchBusy, setAlternativeSearchBusy] = useState(false);
+  const [showAlternativePasteLink, setShowAlternativePasteLink] = useState(false);
+  const [alternativeBusy, setAlternativeBusy] = useState(false);
+  const [alternativeMessage, setAlternativeMessage] = useState("");
+  const [alternativeResults, setAlternativeResults] = useState<NykaaSearchResult[]>([]);
+  const product = pool.product;
+  const { price, productUrl } = poolDisplayValues(pool);
+  const nextTrendTarget = trendTarget(pool.currentJoinCount);
+  const trendProgress = Math.min(100, Math.round((pool.currentJoinCount / nextTrendTarget) * 100));
+  const disabled = pool.status === "closed" || pool.status === "expired";
+  const shareUrl = typeof window === "undefined" ? `/?pool=${pool.id}` : `${window.location.origin}/?pool=${pool.id}`;
+  const shareText = `I found ${product.title} trending. Add it to your cart if you're watching it too.`;
+
+  useEffect(() => {
+    setAlternativeResults([]);
+    setAlternativeSearch("");
+    setAlternativeUrl("");
+    setShowAlternativePasteLink(false);
+    setAlternativeMessage("");
+  }, [pool.id]);
+
+  async function searchAlternativeProducts(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const query = alternativeSearch.trim();
+    if (query.length < 2) {
+      setError("Type a product name to search.");
+      return;
+    }
+
+    setAlternativeSearchBusy(true);
+    setAlternativeMessage("");
+    setError("");
+    try {
+      const response = await fetch(`/api/nykaa/search?q=${encodeURIComponent(query)}&limit=6`);
+      const payload = await response.json();
+      if (!response.ok) throw new Error(payload.message ?? "Could not search Nykaa.");
+      setAlternativeResults(Array.isArray(payload.results) ? payload.results : []);
+      if (!payload.results?.length) {
+        setError("No Nykaa products found. Try pasting the product link instead.");
+      }
+    } catch (searchError) {
+      setError(searchError instanceof Error ? searchError.message : "Could not search Nykaa.");
+    } finally {
+      setAlternativeSearchBusy(false);
+    }
+  }
+
+  async function addAlternativeFromUrl(productUrl: string) {
+    setAlternativeBusy(true);
+    setAlternativeMessage("");
+    setError("");
+    try {
+      const response = await fetch(`/api/product-pools/${pool.id}/alternatives/from-link`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ url: productUrl }),
+      });
+      const payload = await response.json();
+      if (!response.ok) {
+        if (response.status === 401) router.push(`/login?next=${encodeURIComponent(`/?pool=${pool.id}`)}`);
+        throw new Error(payload.message ?? "Could not add alternative.");
+      }
+      setAlternativeUrl("");
+      setAlternativeResults([]);
+      setAlternativeMessage("Alternative added.");
+      router.refresh();
+    } catch (alternativeError) {
+      setError(alternativeError instanceof Error ? alternativeError.message : "Could not add alternative.");
+    } finally {
+      setAlternativeBusy(false);
+    }
+  }
+
+  async function addAlternativeFromLink() {
+    await addAlternativeFromUrl(alternativeUrl);
+  }
+
+  async function sharePool() {
+    setCopied(false);
+    if (typeof navigator !== "undefined" && "share" in navigator) {
+      try {
+        await navigator.share({ title: product.title, text: shareText, url: shareUrl });
+        return;
+      } catch {
+        // Fall back to copy if native share is cancelled or unavailable.
+      }
+    }
+
+    if (typeof navigator !== "undefined" && navigator.clipboard?.writeText) {
+      await navigator.clipboard.writeText(shareUrl);
+      setCopied(true);
+      window.setTimeout(() => setCopied(false), 1800);
+      return;
+    }
+
+    setError("Could not copy the product link in this browser.");
+  }
+
+  function addToCart() {
+    if (disabled) return;
+    if (pool.userHasJoined) {
+      router.push("/cart");
+      return;
+    }
+
+    startTransition(async () => {
+      setError("");
+      const response = await fetch(`/api/product-pools/${pool.id}/join`, { method: "POST" });
+      const payload = await response.json();
+      if (!response.ok) {
+        setError(payload.message ?? "Could not add this product.");
+        if (response.status === 401) router.push(`/login?next=${encodeURIComponent(`/?pool=${pool.id}`)}`);
+        return;
+      }
+      router.push("/cart");
+      router.refresh();
+    });
+  }
 
   return (
-    <div className="relative overflow-hidden rounded-[18px] bg-[#ffe8ee] text-slate-950 shadow-[0_24px_80px_rgba(190,56,96,0.15)] ring-1 ring-rose-100">
-      <style>{`
-        @keyframes grupinPulseLine {
-          0%, 12% { transform: scaleX(0); opacity: .35; }
-          55%, 100% { transform: scaleX(1); opacity: 1; }
-        }
-        @keyframes grupinPhoneStep {
-          0%, 15% { transform: translateY(16px) scale(.96); opacity: .3; }
-          23%, 72% { transform: translateY(0) scale(1); opacity: 1; }
-          85%, 100% { transform: translateY(-10px) scale(.98); opacity: .55; }
-        }
-        @keyframes grupinCartDrop {
-          0%, 20% { transform: translate(-130px, -24px) rotate(-12deg); opacity: 0; }
-          31%, 72% { transform: translate(0, 0) rotate(0); opacity: 1; }
-          100% { transform: translate(72px, 10px) rotate(6deg); opacity: .25; }
-        }
-        @keyframes grupinMemberOne {
-          0%, 30% { transform: translate(0, 34px) scale(.7); opacity: 0; }
-          42%, 100% { transform: translate(0, 0) scale(1); opacity: 1; }
-        }
-        @keyframes grupinMemberTwo {
-          0%, 38% { transform: translate(-30px, 28px) scale(.7); opacity: 0; }
-          50%, 100% { transform: translate(0, 0) scale(1); opacity: 1; }
-        }
-        @keyframes grupinMemberThree {
-          0%, 46% { transform: translate(30px, 28px) scale(.7); opacity: 0; }
-          58%, 100% { transform: translate(0, 0) scale(1); opacity: 1; }
-        }
-        @keyframes grupinUnlock {
-          0%, 56% { transform: scale(.72) rotate(-8deg); opacity: 0; }
-          66%, 82% { transform: scale(1.08) rotate(3deg); opacity: 1; }
-          100% { transform: scale(1) rotate(0); opacity: 1; }
-        }
-        @keyframes grupinCheckout {
-          0%, 66% { transform: translateY(22px); opacity: 0; }
-          76%, 100% { transform: translateY(0); opacity: 1; }
-        }
-        @keyframes grupinRoomLink {
-          0%, 34% { transform: translateX(-40px) scale(.75); opacity: 0; }
-          46%, 68% { transform: translateX(0) scale(1); opacity: 1; }
-          88%, 100% { transform: translateX(52px) scale(.82); opacity: 0; }
-        }
-        @keyframes grupinCartStackOne {
-          0%, 28% { transform: translateY(18px) rotate(-5deg); opacity: 0; }
-          38%, 100% { transform: translateY(0) rotate(-5deg); opacity: 1; }
-        }
-        @keyframes grupinCartStackTwo {
-          0%, 42% { transform: translateY(18px) rotate(4deg); opacity: 0; }
-          54%, 100% { transform: translateY(0) rotate(4deg); opacity: 1; }
-        }
-        @keyframes grupinCartStackThree {
-          0%, 50% { transform: translateY(18px) rotate(-2deg); opacity: 0; }
-          62%, 100% { transform: translateY(0) rotate(-2deg); opacity: 1; }
-        }
-        @keyframes grupinSavingsFill {
-          0%, 54% { transform: scaleX(.18); }
-          72%, 100% { transform: scaleX(1); }
-        }
-        @keyframes grupinActivity {
-          0%, 30% { transform: translateY(12px); opacity: 0; }
-          40%, 86% { transform: translateY(0); opacity: 1; }
-          100% { transform: translateY(-8px); opacity: .45; }
-        }
-        @keyframes grupinConfetti {
-          0%, 58% { transform: translateY(-8px) rotate(0); opacity: 0; }
-          70% { opacity: 1; }
-          100% { transform: translateY(62px) rotate(160deg); opacity: 0; }
-        }
-        @keyframes grupinFloat {
-          0%, 100% { transform: translateY(0); }
-          50% { transform: translateY(-8px); }
-        }
-        @keyframes grupinScan {
-          0% { transform: translateX(-25%); opacity: .25; }
-          50% { opacity: .7; }
-          100% { transform: translateX(125%); opacity: .25; }
-        }
-        @keyframes grupinMobileSceneOne {
-          0%, 16% { opacity: 1; transform: translateY(0) scale(1); }
-          22%, 100% { opacity: 0; transform: translateY(-10px) scale(.98); }
-        }
-        @keyframes grupinMobileSceneTwo {
-          0%, 18% { opacity: 0; transform: translateY(12px) scale(.98); }
-          24%, 36% { opacity: 1; transform: translateY(0) scale(1); }
-          42%, 100% { opacity: 0; transform: translateY(-10px) scale(.98); }
-        }
-        @keyframes grupinMobileSceneThree {
-          0%, 38% { opacity: 0; transform: translateY(12px) scale(.98); }
-          44%, 56% { opacity: 1; transform: translateY(0) scale(1); }
-          62%, 100% { opacity: 0; transform: translateY(-10px) scale(.98); }
-        }
-        @keyframes grupinMobileSceneFour {
-          0%, 58% { opacity: 0; transform: translateY(12px) scale(.98); }
-          64%, 76% { opacity: 1; transform: translateY(0) scale(1); }
-          82%, 100% { opacity: 0; transform: translateY(-10px) scale(.98); }
-        }
-        @keyframes grupinMobileSceneFive {
-          0%, 78% { opacity: 0; transform: translateY(12px) scale(.98); }
-          84%, 96% { opacity: 1; transform: translateY(0) scale(1); }
-          100% { opacity: 0; transform: translateY(-8px) scale(.98); }
-        }
-        @keyframes grupinMobileProgress {
-          0%, 16% { transform: scaleX(.18); }
-          24%, 36% { transform: scaleX(.38); }
-          44%, 56% { transform: scaleX(.62); }
-          64%, 76% { transform: scaleX(.82); }
-          84%, 100% { transform: scaleX(1); }
-        }
-        @keyframes grupinMobileCartPop {
-          0%, 24% { transform: translateY(10px) scale(.9); opacity: 0; }
-          30%, 100% { transform: translateY(0) scale(1); opacity: 1; }
-        }
-        .grupin-sequence-line { transform-origin: left; animation: grupinPulseLine 7.2s ease-in-out infinite; }
-        .grupin-phone { animation: grupinPhoneStep 7.2s ease-in-out infinite; }
-        .grupin-cart { animation: grupinCartDrop 7.2s ease-in-out infinite; }
-        .grupin-member-1 { animation: grupinMemberOne 7.2s ease-in-out infinite; }
-        .grupin-member-2 { animation: grupinMemberTwo 7.2s ease-in-out infinite; }
-        .grupin-member-3 { animation: grupinMemberThree 7.2s ease-in-out infinite; }
-        .grupin-unlock { animation: grupinUnlock 7.2s ease-in-out infinite; }
-        .grupin-checkout { animation: grupinCheckout 7.2s ease-in-out infinite; }
-        .grupin-room-link { animation: grupinRoomLink 7.2s ease-in-out infinite; }
-        .grupin-stack-1 { animation: grupinCartStackOne 7.2s ease-in-out infinite; }
-        .grupin-stack-2 { animation: grupinCartStackTwo 7.2s ease-in-out infinite; }
-        .grupin-stack-3 { animation: grupinCartStackThree 7.2s ease-in-out infinite; }
-        .grupin-savings-fill { transform-origin: left; animation: grupinSavingsFill 7.2s ease-in-out infinite; }
-        .grupin-activity { animation: grupinActivity 7.2s ease-in-out infinite; }
-        .grupin-confetti { animation: grupinConfetti 7.2s ease-in-out infinite; }
-        .grupin-float { animation: grupinFloat 3.6s ease-in-out infinite; }
-        .grupin-scan { animation: grupinScan 3s ease-in-out infinite; }
-        .grupin-mobile-scene-1 { animation: grupinMobileSceneOne 12s ease-in-out infinite; }
-        .grupin-mobile-scene-2 { animation: grupinMobileSceneTwo 12s ease-in-out infinite; }
-        .grupin-mobile-scene-3 { animation: grupinMobileSceneThree 12s ease-in-out infinite; }
-        .grupin-mobile-scene-4 { animation: grupinMobileSceneFour 12s ease-in-out infinite; }
-        .grupin-mobile-scene-5 { animation: grupinMobileSceneFive 12s ease-in-out infinite; }
-        .grupin-mobile-progress { transform-origin: left; animation: grupinMobileProgress 12s ease-in-out infinite; }
-        .grupin-mobile-cart-pop { animation: grupinMobileCartPop 12s ease-in-out infinite; }
-      `}</style>
-
-      <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(255,255,255,0.92),transparent_34%),radial-gradient(circle_at_80%_18%,rgba(201,240,69,0.34),transparent_26%),radial-gradient(circle_at_bottom_right,rgba(244,63,94,0.24),transparent_38%)]" />
-      <div className="absolute inset-x-0 top-0 h-24 bg-gradient-to-b from-white/70 to-transparent" />
-
-      <div className="relative p-3 sm:p-5">
-        <div className="relative min-h-[410px] overflow-hidden rounded-[18px] border border-white/80 bg-white/55 p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.75)] backdrop-blur sm:hidden">
-          <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,rgba(255,255,255,0.80),transparent_34%),radial-gradient(circle_at_bottom_right,rgba(244,63,94,0.18),transparent_36%)]" />
-          <div className="relative z-10 flex items-center justify-between">
-            <div>
-              <p className="text-xs font-semibold uppercase tracking-[0.16em] text-rose-600">GruPin</p>
-              <p className="mt-1 text-lg font-semibold">Shop together. Pay less.</p>
-            </div>
-            <div className="rounded-full bg-lime-300 px-3 py-1.5 text-xs font-semibold text-lime-950 ring-1 ring-lime-400/40">Team Price</div>
+    <div className="fixed inset-0 z-50 flex items-end justify-center bg-slate-950/40 px-3 pb-3 pt-12 backdrop-blur-sm sm:px-5 sm:pb-5">
+      <button type="button" aria-label="Close share popup" className="absolute inset-0 cursor-default" onClick={onClose} />
+      <section className="relative max-h-[88vh] w-full max-w-xl overflow-hidden rounded-t-[24px] bg-white shadow-[0_30px_90px_rgba(15,23,42,0.28)] sm:rounded-[24px]">
+        <div className="flex items-center justify-between border-b border-slate-100 px-4 py-3 sm:px-5">
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-[0.16em] text-cyan-700">Trending product</p>
+            <h3 className="text-lg font-semibold tracking-tight text-slate-950">People are adding this</h3>
           </div>
-
-          <div className="absolute left-4 right-4 top-[88px] z-10 h-1.5 overflow-hidden rounded-full bg-rose-100">
-            <div className="grupin-mobile-progress h-full rounded-full bg-rose-500" />
-          </div>
-
-          <div className="grupin-mobile-scene-1 absolute inset-x-4 top-[118px] rounded-[20px] bg-white p-4 text-slate-950 shadow-2xl">
-            <div className="flex items-start justify-between gap-3">
-              <div>
-                <p className="text-xs font-black uppercase tracking-[0.16em] text-rose-600">Pick a brand</p>
-                <h3 className="mt-1 text-xl font-semibold">Enter a Team Room</h3>
-                <p className="mt-2 text-sm font-semibold leading-5 text-slate-500">One tap opens the brand deal.</p>
-              </div>
-              <div className="grid h-12 w-12 shrink-0 place-items-center rounded-2xl bg-rose-100 text-rose-700">
-                <Users className="h-6 w-6" />
-              </div>
-            </div>
-            <div className="mt-5 grid grid-cols-3 gap-2">
-              {["LP", "C", "F"].map((brand) => (
-                <div key={brand} className="rounded-[18px] bg-[#fff7f8] p-3 text-center shadow-sm">
-                  <div className="mx-auto grid h-11 w-11 place-items-center rounded-full bg-white text-sm font-semibold text-rose-700 ring-1 ring-rose-100">{brand}</div>
-                  <div className="mt-2 h-1.5 rounded-full bg-rose-100" />
-                </div>
-              ))}
-            </div>
-            <div className="mt-4 rounded-[14px] bg-rose-500 px-3 py-2 text-center text-sm font-semibold text-white">Buy at Team Price</div>
-          </div>
-
-          <div className="grupin-mobile-scene-2 absolute inset-x-4 top-[118px] rounded-[20px] bg-white p-4 text-slate-950 shadow-2xl">
-            <div className="flex items-start justify-between gap-3">
-              <div>
-                <p className="text-xs font-black uppercase tracking-[0.16em] text-lime-700">Add to cart</p>
-                <h3 className="mt-1 text-xl font-semibold">Choose products</h3>
-                <p className="mt-2 text-sm font-semibold leading-5 text-slate-500">Shade, size, quantity. Done.</p>
-              </div>
-              <div className="grid h-12 w-12 shrink-0 place-items-center rounded-2xl bg-lime-100 text-lime-800">
-                <ShoppingBag className="h-6 w-6" />
-              </div>
-            </div>
-            <div className="mt-5 flex items-center gap-3 rounded-[18px] bg-[#f7faf5] p-3">
-              <div className="grid h-16 w-16 shrink-0 place-items-center rounded-[16px] bg-white text-lime-800 shadow-sm">
-                <ShoppingBag className="h-8 w-8" />
-              </div>
-              <div className="min-w-0 flex-1">
-                <p className="truncate text-sm font-semibold">Serum Foundation</p>
-                <div className="mt-2 flex items-center gap-2 text-sm">
-                  <span className="font-semibold text-slate-950">₹749</span>
-                  <span className="text-xs font-semibold text-slate-400 line-through">₹999</span>
-                </div>
-              </div>
-              <div className="grupin-mobile-cart-pop rounded-full bg-lime-300 px-3 py-1.5 text-xs font-black text-lime-950">Added</div>
-            </div>
-          </div>
-
-          <div className="grupin-mobile-scene-3 absolute inset-x-4 top-[118px] rounded-[20px] bg-white p-4 text-slate-950 shadow-2xl">
-            <div className="flex items-start justify-between gap-3">
-              <div>
-                <p className="text-xs font-black uppercase tracking-[0.16em] text-rose-700">Share</p>
-                <h3 className="mt-1 text-xl font-semibold">Share the room</h3>
-                <p className="mt-2 text-sm font-semibold leading-5 text-slate-500">More members make the deal real.</p>
-              </div>
-              <div className="grid h-12 w-12 shrink-0 place-items-center rounded-2xl bg-rose-100 text-rose-700">
-                <Share2 className="h-6 w-6" />
-              </div>
-            </div>
-            <div className="mt-5 rounded-[18px] bg-rose-50 p-3">
-              <div className="flex items-center justify-between rounded-full bg-white px-3 py-2 shadow-sm">
-                <span className="text-xs font-semibold text-slate-500">grupin.shop/r/WAQJ5B</span>
-                <Link2 className="h-4 w-4 text-rose-500" />
-              </div>
-              <div className="mt-4 flex justify-center -space-x-2">
-                {["A", "M", "S"].map((name) => (
-                  <span key={name} className="grid h-11 w-11 place-items-center rounded-full border-2 border-white bg-slate-950 text-sm font-semibold text-white shadow-sm">{name}</span>
-                ))}
-              </div>
-            </div>
-          </div>
-
-          <div className="grupin-mobile-scene-4 absolute inset-x-4 top-[118px] rounded-[20px] bg-lime-300 p-4 text-lime-950 shadow-2xl">
-            <div className="flex items-start justify-between gap-3">
-              <div>
-                <p className="text-xs font-black uppercase tracking-[0.16em] text-lime-900/65">Unlock</p>
-                <h3 className="mt-1 text-2xl font-semibold">Team Price unlocks</h3>
-                <p className="mt-2 text-sm font-semibold leading-5 text-lime-900/70">First checkouts get the deal.</p>
-              </div>
-              <div className="grid h-12 w-12 shrink-0 place-items-center rounded-2xl bg-white text-lime-800">
-                <Check className="h-6 w-6" />
-              </div>
-            </div>
-            <div className="mt-5 grid grid-cols-3 gap-2">
-              {[1, 2, 3].map((slot) => (
-                <div key={slot} className="rounded-[16px] bg-white p-3 text-center shadow-sm">
-                  <Check className="mx-auto h-5 w-5" />
-                  <p className="mt-1 text-xs font-black">Member {slot}</p>
-                </div>
-              ))}
-            </div>
-            <div className="mt-4 rounded-full bg-lime-950 px-4 py-2 text-center text-sm font-semibold text-white">Team saved ₹1,240</div>
-          </div>
-
-          <div className="grupin-mobile-scene-5 absolute inset-x-4 top-[118px] rounded-[20px] bg-white p-4 text-slate-950 shadow-2xl">
-            <div className="flex items-start justify-between gap-3">
-              <div>
-                <p className="text-xs font-black uppercase tracking-[0.16em] text-emerald-700">Checkout</p>
-                <h3 className="mt-1 text-xl font-semibold">Pay Team Price</h3>
-                <p className="mt-2 text-sm font-semibold leading-5 text-slate-500">Complete purchase before slots close.</p>
-              </div>
-              <div className="grid h-12 w-12 shrink-0 place-items-center rounded-2xl bg-emerald-100 text-emerald-700">
-                <CreditCard className="h-6 w-6" />
-              </div>
-            </div>
-            <div className="mt-5 space-y-2 rounded-[18px] bg-slate-50 p-3">
-              {["A***5 checked out", "M***8 checked out", "Your slot is ready"].map((item) => (
-                <div key={item} className="flex items-center justify-between rounded-full bg-white px-3 py-2 text-sm font-semibold shadow-sm">
-                  <span>{item}</span>
-                  <Check className="h-4 w-4 text-emerald-600" />
-                </div>
-              ))}
-            </div>
-          </div>
-
-          <div className="absolute inset-x-0 bottom-4 z-10 flex justify-center gap-1.5">
-            {[1, 2, 3, 4, 5].map((dot) => (
-              <span key={dot} className="h-1.5 w-6 rounded-full bg-white/25" />
-            ))}
-          </div>
+          <button type="button" onClick={onClose} aria-label="Close" className="inline-flex h-9 w-9 items-center justify-center rounded-full bg-slate-100 text-slate-700 transition hover:bg-slate-200">
+            <X className="h-4 w-4" />
+          </button>
         </div>
 
-        <div className="relative hidden min-h-[460px] overflow-hidden rounded-[18px] border border-white/80 bg-white/60 p-6 shadow-[inset_0_1px_0_rgba(255,255,255,0.75)] backdrop-blur sm:block">
-          <div className="pointer-events-none absolute inset-0 opacity-70">
-            {[16, 34, 58, 82].map((left, index) => (
-              <span
-                key={left}
-                className="grupin-confetti absolute top-10 h-2.5 w-2.5 rounded-[3px] bg-lime-300"
-                style={{ left: `${left}%`, animationDelay: `${index * 130}ms` }}
-              />
-            ))}
-            {[24, 46, 72].map((left, index) => (
-              <span
-                key={left}
-                className="grupin-confetti absolute top-16 h-2 w-4 rounded-full bg-rose-300"
-                style={{ left: `${left}%`, animationDelay: `${index * 180 + 80}ms` }}
-              />
-            ))}
-          </div>
-          <div className="absolute left-8 right-8 top-[48%] h-1 rounded-full bg-white/12">
-            <div className="grupin-sequence-line h-full rounded-full bg-lime-300" />
-          </div>
-
-          <div className="grupin-phone absolute left-1/2 top-8 h-52 w-32 -translate-x-1/2 rounded-[30px] border-[6px] border-white/80 bg-slate-950/60 shadow-[0_20px_60px_rgba(0,0,0,0.32)] sm:top-10 sm:h-60 sm:w-36">
-            <div className="mx-auto mt-3 h-1.5 w-10 rounded-full bg-white/35" />
-            <div className="mx-3 mt-5 overflow-hidden rounded-[18px] bg-white p-3 text-slate-950">
-              <div className="flex items-center justify-between gap-2">
-                <span className="rounded-full bg-rose-100 px-2 py-1 text-[10px] font-black text-rose-700">Team Room</span>
-                <span className="text-[10px] font-bold text-slate-400">23:42</span>
+        <div className="max-h-[calc(88vh-70px)] overflow-y-auto px-4 py-4 sm:px-5">
+          <div className="flex gap-3">
+            <div className="h-24 w-24 shrink-0 overflow-hidden rounded-[16px] bg-[#f7faf5] sm:h-28 sm:w-28">
+              <img src={productImageUrl(product.primaryImage, 700)} alt="" className="h-full w-full object-contain p-2" />
+            </div>
+            <div className="min-w-0 flex-1">
+              <p className="line-clamp-1 text-[11px] font-semibold uppercase tracking-[0.12em] text-cyan-700">{product.brand?.name ?? product.vendor ?? "Product"}</p>
+              <div className="mt-1 flex items-start gap-2">
+                <h4 className="line-clamp-3 min-w-0 flex-1 text-base font-semibold leading-5 text-slate-950">{product.title}</h4>
+                {productUrl ? (
+                  <a
+                    href={productUrl}
+                    target="_blank"
+                    rel="noreferrer"
+                    aria-label="Open product on website"
+                    className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-slate-100 text-slate-700 transition hover:bg-cyan-50 hover:text-cyan-800"
+                  >
+                    <ExternalLink className="h-4 w-4" />
+                  </a>
+                ) : null}
               </div>
-              <div className="mt-4 h-16 rounded-[14px] bg-[#f7faf5]">
-                <div className="grupin-scan h-full w-1/2 rounded-[14px] bg-gradient-to-r from-transparent via-lime-200 to-transparent" />
-              </div>
-              <div className="mt-3 flex items-center justify-between gap-2 rounded-[12px] bg-slate-50 px-2 py-1.5">
-                <span className="text-[10px] font-bold text-slate-500">MRP ₹999</span>
-                <span className="rounded-full bg-lime-300 px-2 py-1 text-[10px] font-black text-lime-950">Team ₹749</span>
-              </div>
-              <div className="mt-3 h-2 rounded-full bg-slate-100" />
-              <div className="mt-2 h-2 w-2/3 rounded-full bg-slate-100" />
-              <div className="mt-4 rounded-[12px] bg-rose-500 px-3 py-2 text-center text-xs font-semibold text-white">Add to Cart</div>
-            </div>
-          </div>
-
-          <div className="grupin-room-link absolute left-[17%] top-[18%] hidden items-center gap-2 rounded-full bg-white px-3 py-2 text-xs font-bold text-slate-950 shadow-xl sm:flex">
-            <Share2 className="h-4 w-4 text-cyan-700" />
-            Link shared
-            <Link2 className="h-3.5 w-3.5 text-slate-400" />
-          </div>
-
-          <div className="grupin-cart absolute left-[8%] top-[32%] rounded-[18px] bg-white p-3 text-slate-950 shadow-xl sm:left-[13%]">
-            <div className="flex items-center gap-3">
-              <div className="grid h-12 w-12 place-items-center rounded-[12px] bg-lime-100 text-lime-800">
-                <ShoppingBag className="h-6 w-6" />
-              </div>
-              <div>
-                <p className="text-xs font-bold text-slate-500">Cart added</p>
-                <p className="text-sm font-semibold">You save ₹250</p>
-              </div>
-            </div>
-          </div>
-
-          <div className="absolute right-[6%] top-[26%] grid gap-2 sm:right-[10%]">
-            <div className="grupin-member-1 flex items-center gap-2 rounded-full bg-cyan-100 px-3 py-2 text-cyan-900 shadow-lg">
-              <Users className="h-4 w-4" />
-              <span className="text-xs font-black">A***5</span>
-            </div>
-            <div className="grupin-member-2 flex items-center gap-2 rounded-full bg-lime-300 px-3 py-2 text-lime-950 shadow-lg">
-              <ShoppingBag className="h-4 w-4" />
-              <span className="text-xs font-black">2 items</span>
-            </div>
-            <div className="grupin-member-3 flex items-center gap-2 rounded-full bg-rose-100 px-3 py-2 text-rose-800 shadow-lg">
-              <Users className="h-4 w-4" />
-              <span className="text-xs font-black">M***8</span>
-            </div>
-          </div>
-
-          <div className="absolute bottom-36 left-5 hidden w-44 sm:block">
-            <div className="grupin-stack-1 rounded-[16px] bg-white p-3 text-slate-950 shadow-xl">
-              <p className="text-xs font-bold text-slate-500">A***5 cart</p>
-              <p className="mt-1 text-sm font-semibold">Cleanser + Serum</p>
-            </div>
-            <div className="grupin-stack-2 -mt-3 ml-5 rounded-[16px] bg-lime-100 p-3 text-lime-950 shadow-xl">
-              <p className="text-xs font-bold text-lime-800/70">M***8 cart</p>
-              <p className="mt-1 text-sm font-semibold">Foundation</p>
-            </div>
-            <div className="grupin-stack-3 -mt-3 ml-10 rounded-[16px] bg-rose-100 p-3 text-rose-900 shadow-xl">
-              <p className="text-xs font-bold text-rose-700/70">S***1 cart</p>
-              <p className="mt-1 text-sm font-semibold">Moisturizer</p>
-            </div>
-          </div>
-
-          <div className="grupin-unlock absolute bottom-28 left-1/2 w-56 -translate-x-1/2 rounded-[20px] bg-lime-300 p-4 text-center text-lime-950 shadow-[0_20px_60px_rgba(201,240,69,0.28)]">
-            <p className="text-xs font-black uppercase tracking-[0.16em] text-lime-900/70">Unlocked</p>
-            <p className="mt-1 text-2xl font-semibold">Team Price</p>
-            <div className="mt-3 h-2 overflow-hidden rounded-full bg-lime-100">
-              <div className="grupin-savings-fill h-full rounded-full bg-rose-500" />
-            </div>
-            <p className="mt-2 text-xs font-bold text-lime-900/70">Team saved ₹1,240</p>
-            <div className="mt-3 flex items-center justify-center gap-2">
-              {[1, 2, 3].map((slot) => (
-                <span key={slot} className="grid h-7 w-7 place-items-center rounded-full bg-white text-xs font-black text-lime-950">
-                  <Check className="h-4 w-4" />
+              <div className="mt-2 flex flex-wrap items-center gap-2">
+                <span className="inline-flex items-center gap-1 rounded-full bg-emerald-100 px-2.5 py-1 text-xs font-semibold text-emerald-800">
+                  <TrendingUp className="h-3.5 w-3.5" />
+                  {formatCount(pool.currentJoinCount)} carts
                 </span>
-              ))}
+              </div>
             </div>
           </div>
 
-          <div className="grupin-checkout absolute bottom-5 left-5 right-5 rounded-[18px] bg-white p-3 text-slate-950 shadow-xl">
+          <div className="mt-4 rounded-[16px] bg-slate-50 p-3">
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <p className="text-xs font-semibold text-emerald-700">Price on Nykaa</p>
+                <div className="mt-1 flex flex-wrap items-baseline gap-x-3 gap-y-1">
+                  <p className="text-2xl font-semibold text-slate-950">{formatCatalogPrice(price ? Math.round(Number(price)) : null)}</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={sharePool}
+                aria-label="Share product"
+                className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-white text-slate-700 shadow-sm ring-1 ring-slate-200 transition hover:bg-cyan-50 hover:text-cyan-800 hover:ring-cyan-200"
+              >
+                {copied ? <CheckCircle2 className="h-4 w-4 text-emerald-600" /> : <Share2 className="h-4 w-4" />}
+              </button>
+            </div>
+          </div>
+
+          <div className="mt-4 rounded-[16px] border border-slate-200 p-3">
+            <div className="flex items-center justify-between text-sm font-semibold text-slate-700">
+              <span>{pool.currentJoinCount} carts tracking this</span>
+              <span>{pool.currentJoinCount} / {nextTrendTarget}</span>
+            </div>
+            <div className="mt-2">
+              <Progress value={trendProgress} tone="emerald" />
+            </div>
+          </div>
+
+          <div className="mt-4 rounded-[16px] border border-slate-200 p-3">
             <div className="flex items-center justify-between gap-3">
               <div>
-                <p className="text-xs font-bold text-slate-500">Checkout slots</p>
-                <p className="text-sm font-semibold">First 3 complete purchase</p>
+                <h4 className="text-sm font-semibold text-slate-950">Alternatives people suggest</h4>
+                {/* <p className="text-xs font-medium text-slate-500">Add a similar product without adding it to your cart.</p> */}
               </div>
-              <div className="flex items-center gap-2 rounded-full bg-rose-500 px-3 py-1.5 text-xs font-semibold text-white">
-                <CreditCard className="h-3.5 w-3.5" />
-                Complete Purchase
+            </div>
+
+            {pool.alternatives?.length ? (
+              <div className="-mx-3 mt-3 flex gap-2 overflow-x-auto px-3 pb-1">
+                {pool.alternatives.slice(0, 8).map((alternative) => {
+                  const alternativeProduct = alternative.product;
+                  const alternativeValues = poolDisplayValues(alternative);
+                  return (
+                    <button
+                      key={alternative.id}
+                      type="button"
+                      onClick={() => {
+                        onOpenPool(alternative);
+                        router.replace(`/?pool=${alternative.id}`, { scroll: false });
+                      }}
+                      className="w-36 shrink-0 overflow-hidden rounded-[12px] bg-slate-50 text-left transition hover:bg-cyan-50 sm:w-40"
+                    >
+                      <div className="aspect-square bg-white">
+                        <img src={productImageUrl(alternativeProduct.primaryImage, 500)} alt="" className="h-full w-full object-contain p-2" loading="lazy" />
+                      </div>
+                      <div className="p-2">
+                        <p className="line-clamp-1 text-[10px] font-semibold uppercase tracking-[0.1em] text-cyan-700">{alternativeProduct.brand?.name ?? alternativeProduct.vendor ?? "Product"}</p>
+                        <p className="mt-1 line-clamp-2 min-h-8 text-xs font-semibold leading-4 text-slate-900">{alternativeProduct.title}</p>
+                        <div className="mt-1 flex items-center justify-between gap-2">
+                          <span className="text-xs font-semibold text-slate-950">{formatCatalogPrice(alternativeValues.price ? Math.round(Number(alternativeValues.price)) : null)}</span>
+                          <span className="text-[10px] font-semibold text-emerald-700">{formatCount(alternative.currentJoinCount)} carts</span>
+                        </div>
+                      </div>
+                    </button>
+                  );
+                })}
               </div>
+            ) : (
+              <p className="mt-3 rounded-[12px] bg-slate-50 px-3 py-2 text-sm font-medium text-slate-500">No alternatives yet. Add one if you know a better match.</p>
+            )}
+
+            <div className="mt-3 space-y-2">
+              <form onSubmit={searchAlternativeProducts} className="grid gap-2 sm:grid-cols-[1fr_auto]">
+                <label className="flex h-11 items-center gap-2 rounded-[12px] bg-white px-3 ring-1 ring-slate-200 focus-within:ring-cyan-300">
+                  <Search className="h-4 w-4 shrink-0 text-slate-400" />
+                  <input
+                    value={alternativeSearch}
+                    onChange={(event) => setAlternativeSearch(event.target.value)}
+                    placeholder="Search Nykaa alternatives"
+                    className="min-w-0 flex-1 bg-transparent text-sm font-semibold text-slate-900 outline-none placeholder:text-slate-400"
+                  />
+                </label>
+                <button
+                  disabled={alternativeSearchBusy || alternativeSearch.trim().length < 2}
+                  className="h-11 w-full rounded-[12px] bg-slate-950 px-4 text-sm font-semibold text-white transition hover:bg-slate-800 disabled:bg-slate-200 disabled:text-slate-500 sm:w-auto"
+                >
+                  {alternativeSearchBusy ? "Searching..." : "Search"}
+                </button>
+              </form>
+              {alternativeResults.length ? (
+                <div className="max-h-52 space-y-2 overflow-y-auto rounded-[12px] border border-slate-100 bg-white p-2">
+                  {alternativeResults.map((result) => {
+                    const resultPrice = result.salePrice ?? result.mrp;
+                    return (
+                      <button
+                        key={result.id}
+                        type="button"
+                        onClick={() => addAlternativeFromUrl(result.url)}
+                        disabled={alternativeBusy}
+                        className="flex w-full items-center gap-3 rounded-[10px] p-2 text-left transition hover:bg-slate-50 disabled:opacity-60"
+                      >
+                        <span className="grid h-12 w-12 shrink-0 place-items-center overflow-hidden rounded-[8px] bg-slate-50">
+                          {result.imageUrl ? <img src={productImageUrl(result.imageUrl, 300)} alt="" className="h-full w-full object-contain p-1" /> : <ShoppingBag className="h-4 w-4 text-slate-300" />}
+                        </span>
+                        <span className="min-w-0 flex-1">
+                          <span className="block line-clamp-2 text-sm font-semibold leading-5 text-slate-900">{result.title}</span>
+                          {resultPrice ? <span className="mt-1 block text-xs font-semibold text-slate-500">{formatCatalogPrice(resultPrice)}</span> : null}
+                        </span>
+                        <span className="shrink-0 rounded-full bg-emerald-50 px-2 py-1 text-xs font-semibold text-emerald-700">{alternativeBusy ? "Adding" : "Add"}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+              ) : null}
+              <button
+                type="button"
+                onClick={() => setShowAlternativePasteLink((current) => !current)}
+                className="inline-flex items-center gap-2 rounded-full px-2 py-1 text-xs font-semibold text-cyan-800 transition hover:bg-cyan-50"
+              >
+                <Link2 className="h-3.5 w-3.5" />
+                {showAlternativePasteLink ? "Hide link paste" : "Paste a Nykaa link instead"}
+              </button>
+              {showAlternativePasteLink ? (
+                <div className="grid gap-2 rounded-[14px] bg-slate-50 p-2 sm:grid-cols-[1fr_auto]">
+                  <label className="flex h-11 items-center gap-2 rounded-[12px] bg-white px-3 ring-1 ring-slate-100 focus-within:ring-cyan-300">
+                    <Link2 className="h-4 w-4 shrink-0 text-cyan-700" />
+                    <input
+                      value={alternativeUrl}
+                      onChange={(event) => setAlternativeUrl(event.target.value)}
+                      placeholder="Paste Nykaa alternative link"
+                      className="min-w-0 flex-1 bg-transparent text-sm font-semibold text-slate-900 outline-none placeholder:text-slate-400"
+                    />
+                  </label>
+                  <button
+                    type="button"
+                    onClick={addAlternativeFromLink}
+                    disabled={alternativeBusy || !alternativeUrl.trim()}
+                    className="h-11 rounded-[12px] bg-slate-950 px-4 text-sm font-semibold text-white transition hover:bg-slate-800 disabled:bg-slate-200 disabled:text-slate-500"
+                  >
+                    {alternativeBusy ? "Adding..." : "Add"}
+                  </button>
+                </div>
+              ) : null}
+              {alternativeMessage ? <p className="rounded-[10px] bg-emerald-50 px-3 py-2 text-sm font-semibold text-emerald-700">{alternativeMessage}</p> : null}
             </div>
           </div>
 
-          <div className="grupin-float absolute right-5 top-5 rounded-[16px] bg-white/85 px-3 py-2 text-xs font-semibold text-slate-950 shadow-lg ring-1 ring-rose-100">
-            <p className="text-slate-500">Activity</p>
-            <div className="grupin-activity mt-1 space-y-1">
-              {activity.map((item) => (
-                <p key={item}>{item}</p>
-              ))}
-            </div>
+          <div className="mt-4 rounded-[16px] bg-[#fff6f8] px-2 py-2">
+            <InstructionMarquee steps={sheetInstructionSteps} compact />
+          </div>
+
+          {error ? <p className="mt-3 rounded-[10px] bg-rose-50 px-3 py-2 text-sm font-semibold text-rose-700">{error}</p> : null}
+
+          <div className="sticky bottom-0 -mx-4 mt-5 grid gap-2 border-t border-slate-100 bg-white/95 px-4 py-3 backdrop-blur sm:-mx-5 sm:grid-cols-[1fr_1fr] sm:px-5">
+            <button
+              type="button"
+              onClick={sharePool}
+              className="inline-flex h-11 items-center justify-center gap-2 rounded-[12px] border border-slate-200 bg-white px-4 text-sm font-semibold text-slate-800 transition hover:border-cyan-200 hover:bg-cyan-50"
+            >
+              {copied ? <CheckCircle2 className="h-4 w-4 text-emerald-600" /> : <Copy className="h-4 w-4" />}
+              {copied ? "Link copied" : "Share product"}
+            </button>
+            <button
+              type="button"
+              onClick={addToCart}
+              disabled={busy || disabled}
+              className="inline-flex h-11 items-center justify-center gap-2 rounded-[12px] bg-rose-500 px-4 text-sm font-semibold text-white transition hover:bg-rose-600 disabled:bg-slate-200 disabled:text-slate-500"
+            >
+              {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <ShoppingBag className="h-4 w-4" />}
+              {busy ? "Adding..." : poolCta(pool)}
+            </button>
           </div>
         </div>
-      </div>
+      </section>
     </div>
   );
 }
 
-type ProductMarketplaceHomeProps = {
-  brands: MarketplaceBrand[];
-  products: BrandProduct[];
-};
+export function ProductMarketplaceHome({ pools, selectedCategory = null, selectedTime = "all", nextPage = 2, hasMore = false }: ProductMarketplaceHomeProps) {
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const [url, setUrl] = useState("");
+  const [nykaaQuery, setNykaaQuery] = useState("");
+  const [nykaaResults, setNykaaResults] = useState<NykaaSearchResult[]>([]);
+  const [nykaaSearchBusy, setNykaaSearchBusy] = useState(false);
+  const [showPasteLink, setShowPasteLink] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+  const [success, setSuccess] = useState("");
+  const [activePoolId, setActivePoolId] = useState<string | null>(null);
+  const [activePoolOverride, setActivePoolOverride] = useState<TrendingProductPool | null>(null);
+  const activePool = activePoolOverride ?? pools.find((pool) => pool.id === activePoolId) ?? null;
 
-export function ProductMarketplaceHome({ brands, products }: ProductMarketplaceHomeProps) {
+  useEffect(() => {
+    const sharedPoolId = searchParams.get("pool");
+    if (sharedPoolId) {
+      setActivePoolOverride(null);
+      setActivePoolId(sharedPoolId);
+    }
+  }, [searchParams]);
+
+  function openPoolSheet(pool: TrendingProductPool) {
+    setActivePoolOverride(pool);
+    setActivePoolId(pool.id);
+  }
+
+  function closeShareSheet() {
+    setActivePoolId(null);
+    setActivePoolOverride(null);
+    if (searchParams.get("pool")) router.replace("/", { scroll: false });
+  }
+
+  async function addProductUrl(productUrl: string) {
+    setBusy(true);
+    setError("");
+    setSuccess("");
+
+    try {
+      const response = await fetch("/api/product-pools/from-link", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ url: productUrl }),
+      });
+      const payload = await response.json();
+
+      if (!response.ok) {
+        if (response.status === 401) {
+          router.push(`/login?next=${encodeURIComponent("/")}`);
+          return;
+        }
+        throw new Error(payload.message ?? "Could not add this product.");
+      }
+
+      setSuccess("Added to your cart. Track how many people are watching it.");
+      if (payload.pool?.id) {
+        setActivePoolOverride(null);
+        setActivePoolId(payload.pool.id);
+        router.replace(`/?pool=${payload.pool.id}`, { scroll: false });
+      }
+      setUrl("");
+      setNykaaResults([]);
+      router.refresh();
+    } catch (submitError) {
+      setError(submitError instanceof Error ? submitError.message : "Could not add this product.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function submit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    await addProductUrl(url);
+  }
+
+  async function searchNykaaProducts(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const query = nykaaQuery.trim();
+    if (query.length < 2) {
+      setError("Type a product name to search.");
+      return;
+    }
+
+    setNykaaSearchBusy(true);
+    setError("");
+    setSuccess("");
+    try {
+      const response = await fetch(`/api/nykaa/search?q=${encodeURIComponent(query)}&limit=8`);
+      const payload = await response.json();
+      if (!response.ok) throw new Error(payload.message ?? "Could not search Nykaa.");
+      setNykaaResults(Array.isArray(payload.results) ? payload.results : []);
+      if (!payload.results?.length) {
+        setError("No Nykaa products found. Try pasting the product link instead.");
+      }
+    } catch (searchError) {
+      setError(searchError instanceof Error ? searchError.message : "Could not search Nykaa.");
+    } finally {
+      setNykaaSearchBusy(false);
+    }
+  }
+
   return (
-    <main className="min-h-screen bg-[#fbfcf8] text-slate-950">
-      <header className="sticky top-0 z-40 border-b border-emerald-100 bg-white/95 backdrop-blur">
-        <div className="mx-auto flex max-w-7xl items-center justify-between gap-4 px-4 py-3">
-          <Link href="/" className="text-xl font-semibold tracking-tight text-emerald-950">GruPin</Link>
-          <AccountMenu />
+    <main className="min-h-screen bg-[#f8faf8] text-slate-950">
+      <header className="sticky top-0 z-40 border-b border-white/70 bg-[#f8faf8]/90 backdrop-blur">
+        <div className="mx-auto flex max-w-6xl items-center justify-between px-4 py-3">
+          <LogoMark />
+          <div className="flex items-center gap-2">
+            <Link href="/cart" className="inline-flex h-10 items-center justify-center gap-2 rounded-full border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-900 shadow-sm transition hover:border-cyan-200 hover:bg-cyan-50">
+              <ShoppingBag className="h-4 w-4" />
+              <span className="hidden sm:inline">Cart</span>
+            </Link>
+            <AccountMenu />
+          </div>
         </div>
       </header>
 
-      <section className="mx-auto max-w-7xl px-4 py-4 sm:py-5">
-        <HeroAnimation />
-      </section>
-
-      <section className="mx-auto max-w-7xl px-4 py-3">
-        <div className="mb-4 flex items-end justify-between gap-3">
-          <div>
-            <p className="text-sm font-semibold uppercase tracking-[0.14em] text-cyan-700">Brand catalogs</p>
-            <h2 className="mt-1 text-2xl font-semibold tracking-tight text-slate-950 sm:text-3xl">Pick a brand to start</h2>
+      <section className="mx-auto grid max-w-6xl gap-8 px-4 pb-8 pt-7 lg:grid-cols-[1.05fr_0.95fr] lg:items-center lg:pt-12">
+        <div>
+          <div className="inline-flex items-center gap-2 rounded-full bg-lime-100 px-3 py-1 text-xs font-semibold text-lime-900">
+            <Sparkles className="h-3.5 w-3.5" />
+            Live cart trends
           </div>
-        </div>
-        <div className="-mx-4 flex gap-4 overflow-x-auto px-4 pb-3">
-          {brands.map((brand, index) => (
-            <Link key={brand.id} href={`/catalog/${brand.slug}`} className="w-28 shrink-0 text-center">
-              <div className={`mx-auto grid h-20 w-20 place-items-center overflow-hidden rounded-full text-2xl font-semibold ring-1 ${brand.logoUrl ? "bg-white text-slate-900 ring-slate-200" : brandAccents[index % brandAccents.length]}`}>
-                {brand.logoUrl ? (
-                  <img
-                    src={brand.logoUrl}
-                    alt={`${brand.name} logo`}
-                    loading="lazy"
-                    decoding="async"
-                    className={isFaviconLogo(brand.logoUrl) ? "h-11 w-11 object-contain" : "h-full w-full object-contain p-3"}
-                  />
-                ) : (
-                  brandInitials(brand.name)
-                )}
+          <h1 className="mt-5 max-w-2xl text-5xl font-semibold tracking-tight text-slate-950 sm:text-6xl">
+            Discover trending products and their alternatives
+          </h1>
+          <p className="mt-4 max-w-xl text-base leading-7 text-slate-600">
+            Search for a Nykaa product, add it to your cart, and see what people are watching.
+          </p>
+
+          <div className="mt-6 rounded-[24px] border border-white bg-white/95 p-3 shadow-[0_18px_60px_rgba(15,23,42,0.08)] ring-1 ring-slate-100 sm:p-4">
+            <form onSubmit={searchNykaaProducts} className="grid gap-2 sm:grid-cols-[1fr_auto]">
+              <label className="flex h-12 min-w-0 items-center gap-3 rounded-[16px] bg-slate-50 px-4 ring-1 ring-slate-100 transition focus-within:ring-cyan-300">
+                <Search className="h-4 w-4 shrink-0 text-cyan-700" />
+                <input
+                  value={nykaaQuery}
+                  onChange={(event) => {
+                    const nextValue = event.target.value;
+                    setNykaaQuery(nextValue);
+                    if (!nextValue.trim()) {
+                      setNykaaResults([]);
+                    }
+                  }}
+                  placeholder="Search Nykaa products"
+                  className="h-12 min-w-0 flex-1 bg-transparent text-sm font-semibold text-slate-950 outline-none placeholder:text-slate-400"
+                />
+              </label>
+              <button
+                disabled={nykaaSearchBusy || nykaaQuery.trim().length < 2}
+                className="inline-flex h-12 items-center justify-center gap-2 rounded-[16px] bg-rose-500 px-5 text-sm font-semibold text-white shadow-sm transition hover:bg-rose-600 disabled:bg-slate-200 disabled:text-slate-500"
+              >
+                {nykaaSearchBusy ? <Loader2 className="h-4 w-4 animate-spin" /> : <ArrowRight className="h-4 w-4" />}
+                Search
+              </button>
+            </form>
+
+            {nykaaQuery.trim() && nykaaResults.length ? (
+              <div className="mt-3 grid max-h-[330px] gap-2 overflow-y-auto pr-1">
+                {nykaaResults.map((result) => {
+                  const resultPrice = result.salePrice ?? result.mrp;
+                  return (
+                    <button
+                      key={result.id}
+                      type="button"
+                      onClick={() => addProductUrl(result.url)}
+                      disabled={busy}
+                      className="grid grid-cols-[64px_1fr_auto] items-center gap-3 rounded-[16px] border border-slate-100 bg-slate-50 p-2 text-left transition hover:border-cyan-200 hover:bg-cyan-50 disabled:opacity-70"
+                    >
+                      <span className="grid h-16 w-16 place-items-center overflow-hidden rounded-[12px] bg-white">
+                        {result.imageUrl ? <img src={result.imageUrl} alt="" className="h-full w-full object-contain p-1" /> : <ShoppingBag className="h-5 w-5 text-slate-300" />}
+                      </span>
+                      <span className="min-w-0">
+                        <span className="line-clamp-2 text-sm font-semibold leading-5 text-slate-950">{result.title}</span>
+                        <span className="mt-1 flex flex-wrap items-center gap-2 text-xs font-semibold text-slate-500">
+                          {resultPrice ? <span>{formatCatalogPrice(resultPrice)}</span> : null}
+                          {result.rating ? (
+                            <span className="inline-flex items-center gap-1 text-emerald-700">
+                              <Star className="h-3 w-3 fill-current" />
+                              {result.rating.toFixed(1)}
+                            </span>
+                          ) : null}
+                        </span>
+                      </span>
+                      <span className="inline-flex h-9 w-9 items-center justify-center rounded-full bg-white text-rose-600 shadow-sm">
+                        {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <ShoppingBag className="h-4 w-4" />}
+                      </span>
+                    </button>
+                  );
+                })}
               </div>
-              <p className="mt-2 line-clamp-2 text-sm font-semibold leading-5 text-slate-950">{brand.name}</p>
-              <p className="mt-0.5 text-xs font-semibold text-slate-500">{brand.productCount}+ products</p>
-            </Link>
-          ))}
+            ) : null}
+
+            <div className="mt-3">
+              <button
+                type="button"
+                onClick={() => setShowPasteLink((current) => !current)}
+                className="inline-flex items-center gap-2 rounded-full px-2 py-1 text-xs font-semibold text-cyan-800 transition hover:bg-cyan-50"
+              >
+                <Link2 className="h-3.5 w-3.5" />
+                {showPasteLink ? "Hide link paste" : "Paste a Nykaa link instead"}
+              </button>
+            </div>
+
+            {showPasteLink ? (
+              <form onSubmit={submit} className="mt-3 grid gap-2 rounded-[18px] bg-slate-50 p-2 sm:grid-cols-[1fr_auto]">
+                <label className="flex h-12 min-w-0 items-center gap-3 rounded-[14px] bg-white px-4 ring-1 ring-slate-100 transition focus-within:ring-cyan-300">
+                  <Link2 className="h-4 w-4 shrink-0 text-cyan-700" />
+                  <input
+                    value={url}
+                    onChange={(event) => setUrl(event.target.value)}
+                    placeholder="Paste Nykaa product link"
+                    className="h-12 min-w-0 flex-1 bg-transparent text-sm font-semibold text-slate-950 outline-none placeholder:text-slate-400"
+                  />
+                </label>
+                <button disabled={busy || !url.trim()} className="inline-flex h-12 items-center justify-center gap-2 rounded-[14px] bg-slate-950 px-5 text-sm font-semibold text-white shadow-sm transition hover:bg-slate-800 disabled:bg-slate-200 disabled:text-slate-500">
+                  {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <ArrowRight className="h-4 w-4" />}
+                  Add to Cart
+                </button>
+              </form>
+            ) : null}
+            {error ? <p className="mt-3 rounded-[10px] bg-rose-50 px-3 py-2 text-sm font-semibold text-rose-700">{error}</p> : null}
+            {success ? (
+              <p className="mt-3 inline-flex items-center gap-2 rounded-[10px] bg-emerald-50 px-3 py-2 text-sm font-semibold text-emerald-800">
+                <CheckCircle2 className="h-4 w-4" />
+                {success}
+              </p>
+            ) : null}
+          </div>
+        </div>
+
+        <div className="min-w-0 overflow-hidden rounded-[22px] border border-rose-100 bg-[#ffe8ee] p-5 shadow-[0_24px_80px_rgba(190,56,96,0.14)]">
+          <InstructionMarquee steps={homeInstructionSteps} />
+          {/* <div className="mt-4 rounded-[16px] bg-slate-950 p-4 text-white">
+            <div className="flex items-center justify-between">
+              <p className="text-sm font-semibold">Trend score grows with carts</p>
+              <TrendingUp className="h-4 w-4 text-lime-300" />
+            </div>
+            <div className="mt-4 h-2 overflow-hidden rounded-full bg-white/15">
+              <div className="h-full w-3/4 rounded-full bg-lime-300" />
+            </div>
+            <p className="mt-3 text-xs font-semibold text-white/70">The more carts a product appears in, the higher it climbs.</p>
+          </div> */}
         </div>
       </section>
 
-      <section className="mx-auto max-w-7xl px-4 py-6 pb-14">
+      <section className="mx-auto max-w-6xl px-4 pb-14">
         <div className="mb-4 flex items-end justify-between gap-3">
           <div>
-            <p className="text-sm font-semibold uppercase tracking-[0.14em] text-cyan-700">Trending products</p>
-            {/* <h2 className="mt-1 text-2xl font-semibold tracking-tight text-slate-950 sm:text-3xl">Random picks from Team Price catalogs</h2> */}
+            <p className="text-sm font-semibold uppercase tracking-[0.16em] text-cyan-700">Trending</p>
+            <h2 className="mt-1 text-2xl font-semibold tracking-tight text-slate-950">Products people have in cart</h2>
+          </div>
+          <Link href="/cart" className="hidden h-10 items-center justify-center rounded-[10px] border border-slate-200 bg-white px-4 text-sm font-semibold text-slate-950 sm:inline-flex">
+            View cart
+          </Link>
+        </div>
+
+        <div className="mb-5">
+          <div className="flex items-center gap-2">
+            <div className="group relative shrink-0">
+              <button
+                type="button"
+                aria-label="Filter by time"
+                className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-700 shadow-sm transition hover:border-cyan-200 hover:bg-cyan-50 hover:text-cyan-800"
+              >
+                <Filter className="h-4 w-4" />
+              </button>
+              <div className="invisible absolute left-0 top-[calc(100%+8px)] z-20 w-44 translate-y-1 rounded-[16px] border border-slate-200 bg-white p-2 opacity-0 shadow-[0_18px_50px_rgba(15,23,42,0.14)] transition group-focus-within:visible group-focus-within:translate-y-0 group-focus-within:opacity-100 group-hover:visible group-hover:translate-y-0 group-hover:opacity-100">
+                {timeOptions.map((option) => (
+                  <Link
+                    key={option.value}
+                    href={filterHref(selectedCategory, option.value)}
+                    className={`flex items-center justify-between rounded-[12px] px-3 py-2 text-sm font-semibold transition ${selectedTime === option.value ? "bg-emerald-50 text-emerald-800" : "text-slate-700 hover:bg-slate-50"}`}
+                  >
+                    {option.label}
+                    {selectedTime === option.value ? <CheckCircle2 className="h-4 w-4 text-emerald-600" /> : null}
+                  </Link>
+                ))}
+              </div>
+            </div>
+            <div className="-mr-4 flex min-w-0 flex-1 gap-2 overflow-x-auto pr-4 pb-1 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+              <Link
+                href={filterHref(null, selectedTime)}
+                className={`shrink-0 rounded-full px-4 py-2 text-sm font-semibold transition ${!selectedCategory ? "bg-cyan-700 !text-white shadow-sm" : "bg-white text-slate-700 ring-1 ring-slate-200 hover:bg-slate-50"}`}
+              >
+                All categories
+              </Link>
+              {categoryOptions.map((option) => (
+                <Link
+                  key={option}
+                  href={filterHref(option, selectedTime)}
+                  className={`shrink-0 rounded-full px-4 py-2 text-sm font-semibold transition ${selectedCategory === option ? "bg-cyan-700 !text-white shadow-sm" : "bg-white text-slate-700 ring-1 ring-slate-200 hover:bg-slate-50"}`}
+                >
+                  {option}
+                </Link>
+              ))}
+            </div>
           </div>
         </div>
-        <div className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4">
-          {products.map((product) => (
-            <MarketplaceProductCard key={product.id} product={product} />
-          ))}
-        </div>
+
+        {pools.length ? (
+          <>
+            <div className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4">
+              {pools.map((pool) => <TrendingPoolCard key={pool.id} pool={pool} onOpenShare={openPoolSheet} />)}
+            </div>
+            {hasMore ? (
+              <div className="mt-6 flex justify-center">
+                <Link
+                  href={filterHref(selectedCategory, selectedTime, nextPage)}
+                  scroll={false}
+                  className="inline-flex h-11 items-center justify-center rounded-full border border-slate-200 bg-white px-6 text-sm font-semibold text-slate-900 shadow-sm transition hover:border-cyan-200 hover:bg-cyan-50"
+                >
+                  Load more
+                </Link>
+              </div>
+            ) : null}
+          </>
+        ) : (
+          <div className="rounded-[18px] border border-dashed border-slate-300 bg-white p-10 text-center">
+            <h3 className="text-xl font-semibold text-slate-950">{pools.length ? "No matching products" : "No cart trends yet"}</h3>
+            <p className="mt-2 text-sm text-slate-500">{selectedCategory ? "Try another category." : "Add the first product."}</p>
+          </div>
+        )}
       </section>
+      {activePool ? <PoolShareSheet pool={activePool} onClose={closeShareSheet} onOpenPool={openPoolSheet} /> : null}
     </main>
   );
 }
