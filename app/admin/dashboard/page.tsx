@@ -3,7 +3,7 @@ import { AdminSignOutForm } from "@/components/admin-sign-out-form";
 import { PlatformCouponInventoryForm, TelegramTestForm } from "@/components/dashboard-action-forms";
 import { sendTelegramTestAction, updatePlatformCouponInventoryAction } from "@/lib/actions";
 import { requireAdminOrRedirect } from "@/lib/auth";
-import { getPlatformCouponInventory, listBrandsAdmin, listCouponClaimsAdmin, listPrivateUnlockDealsAdmin, listPrivateUnlockMembersAdmin, listProductTeamOrdersAdmin, listProductTeamUnlocksAdmin, listProductsAdmin } from "@/lib/data";
+import { getPlatformCouponInventory, listBrandsAdmin, listCouponClaimsAdmin, listPrivateUnlockDealsAdmin, listPrivateUnlockMembersAdmin, listProductPoolsAdmin, listProductsAdmin } from "@/lib/data";
 
 function formatMoney(paise: number) {
   return `₹${Math.round(paise / 100).toLocaleString("en-IN")}`;
@@ -11,20 +11,18 @@ function formatMoney(paise: number) {
 
 export default async function AdminDashboardPage() {
   const user = await requireAdminOrRedirect();
-  const [deals, joins, claims, brands, platformInventory, products, productRooms, productOrders] = await Promise.all([
+  const [deals, joins, claims, brands, platformInventory, products, productPools] = await Promise.all([
     listPrivateUnlockDealsAdmin(),
     listPrivateUnlockMembersAdmin(),
     listCouponClaimsAdmin(),
     listBrandsAdmin(),
     getPlatformCouponInventory(),
     listProductsAdmin(),
-    listProductTeamUnlocksAdmin(),
-    listProductTeamOrdersAdmin(),
+    listProductPoolsAdmin(),
   ]);
 
   const tokenRevenue = joins.filter((join) => join.paymentStatus === "paid").reduce((sum, join) => sum + join.amountPaid, 0);
   const finalRevenue = claims.filter((claim) => claim.status === "paid").reduce((sum, claim) => sum + claim.amountPaid, 0);
-  const productRevenue = productOrders.filter((order) => order.status === "hold" || order.status === "confirmed").reduce((sum, order) => sum + order.amountPaid, 0);
 
   return (
     <div className="mx-auto max-w-6xl space-y-8 px-6 py-12">
@@ -48,13 +46,12 @@ export default async function AdminDashboardPage() {
         </div>
       </div>
 
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         {[
           ["Deals", deals.length],
           ["Brands", brands.length],
           ["Products", products.length],
-          ["Team Rooms", productRooms.length],
-          ["Team Room orders", productOrders.length],
+          ["Product Pools", productPools.length],
         ].map(([label, value]) => (
           <div key={label} className="rounded-[8px] border border-slate-200 bg-white p-5">
             <p className="text-sm font-medium text-slate-500">{label}</p>
@@ -63,12 +60,11 @@ export default async function AdminDashboardPage() {
         ))}
       </div>
 
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
         {[
           ["Token joins", joins.length],
           ["Coupon stock", `${platformInventory.remaining}/${platformInventory.total}`],
           ["Voucher revenue", formatMoney(tokenRevenue + finalRevenue)],
-          ["Product revenue", formatMoney(productRevenue)],
         ].map(([label, value]) => (
           <div key={label} className="rounded-[8px] border border-slate-200 bg-white p-5">
             <p className="text-sm font-medium text-slate-500">{label}</p>
@@ -92,18 +88,14 @@ export default async function AdminDashboardPage() {
         <TelegramTestForm action={sendTelegramTestAction} />
       </section>
 
-      <section className="grid gap-4 md:grid-cols-3">
+      <section className="grid gap-4 md:grid-cols-2">
         <Link href="/admin/catalog" className="rounded-[8px] border border-slate-200 bg-white p-5 transition hover:border-slate-400">
           <p className="text-xl font-semibold text-slate-950">Catalog</p>
           <p className="mt-1 text-sm text-slate-500">Create, edit, hide, price, enrich, and delete products.</p>
         </Link>
-        <Link href="/admin/product-rooms" className="rounded-[8px] border border-slate-200 bg-white p-5 transition hover:border-slate-400">
-          <p className="text-xl font-semibold text-slate-950">Team Rooms</p>
-          <p className="mt-1 text-sm text-slate-500">Control room status, expiry, team members, and dummy carts.</p>
-        </Link>
-        <Link href="/admin/product-orders" className="rounded-[8px] border border-slate-200 bg-white p-5 transition hover:border-slate-400">
-          <p className="text-xl font-semibold text-slate-950">Team Room orders</p>
-          <p className="mt-1 text-sm text-slate-500">Manage checkout holds, confirmations, refunds, and cancellations.</p>
+        <Link href="/admin/product-pools" className="rounded-[8px] border border-slate-200 bg-white p-5 transition hover:border-slate-400">
+          <p className="text-xl font-semibold text-slate-950">Product Pools</p>
+          <p className="mt-1 text-sm text-slate-500">Monitor public demand pools, target prices, members, and unlock progress.</p>
         </Link>
       </section>
 

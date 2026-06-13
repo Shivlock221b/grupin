@@ -81,7 +81,7 @@ export function AccountLoginForm() {
         <ShieldCheck className="h-8 w-8" />
       </div>
       <h1 className="mt-5 text-center text-3xl font-semibold tracking-tight text-slate-950">Login with phone</h1>
-      <p className="mt-2 text-center text-sm text-slate-500">Save products to your GruPin cart and track what is trending.</p>
+      <p className="mt-2 text-center text-sm text-slate-500">Join product pools and get notified when a target price unlocks.</p>
 
       {step === "phone" ? (
         <form onSubmit={sendOtp} className="mt-6 space-y-4">

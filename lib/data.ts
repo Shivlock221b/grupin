@@ -432,13 +432,6 @@ function percent(current: number, threshold: number) {
   return Math.min(100, Math.round((current / threshold) * 100));
 }
 
-function trendTarget(count: number) {
-  if (count <= 50) return 50;
-  let target = 100;
-  while (count > target) target *= 2;
-  return target;
-}
-
 function trendingProductFromPoolProduct(pool: ProductPool, product: BrandProduct): BrandProduct {
   const snapshot = pool.sourceSnapshot ?? {};
   return {
@@ -460,8 +453,8 @@ function buildTrendingProductPool(row: Record<string, unknown>, productRow: Reco
   return {
     ...pool,
     currentJoinCount: trendCount,
-    unlockThreshold: trendTarget(trendCount),
-    joinProgressPercentage: percent(trendCount, trendTarget(trendCount)),
+    unlockThreshold: pool.unlockThreshold,
+    joinProgressPercentage: percent(trendCount, pool.unlockThreshold),
     checkoutProgressPercentage: percent(pool.successfulCheckoutCount, pool.checkoutThreshold),
     userHasJoined: false,
     alternatives: [],
@@ -1041,6 +1034,32 @@ export async function listTrendingProductPools(profileId?: string | null, limit 
   }
 
   return pools;
+}
+
+export async function listProductPoolsAdmin(limit = 200): Promise<TrendingProductPool[]> {
+  const supabase = createAdminClient();
+
+  if (!supabase) {
+    return [];
+  }
+
+  const { data, error } = await supabase
+    .from("product_pools")
+    .select(`${PRODUCT_POOL_COLUMNS}, products(${PRODUCT_POOL_PRODUCT_COLUMNS}, brands(id, name, slug, logo_url, website_url, created_at))`)
+    .order("created_at", { ascending: false })
+    .limit(limit);
+
+  if (error) {
+    console.warn("Could not load product pools for admin.", error);
+    return [];
+  }
+
+  return ((data ?? []) as unknown as Record<string, unknown>[])
+    .flatMap((row) => {
+      const productRow = relationOne(row.products);
+      if (!productRow) return [];
+      return [buildTrendingProductPool(row, productRow)];
+    });
 }
 
 export async function listProductPoolCartItems(profileId: string): Promise<ProductPoolCartItem[]> {

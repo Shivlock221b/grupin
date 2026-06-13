@@ -13,7 +13,7 @@ export async function POST(_request: NextRequest, { params }: RouteProps) {
     const supabase = createAdminClient();
 
     if (!profile || !supabase) {
-      return NextResponse.json({ message: "Login required. Verify your phone to join this pool." }, { status: 401 });
+      return NextResponse.json({ message: "Login to join this pool and get notified when the target price unlocks." }, { status: 401 });
     }
 
     const { poolId } = await params;

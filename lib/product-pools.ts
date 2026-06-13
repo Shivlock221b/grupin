@@ -56,13 +56,6 @@ function unlockDeadlineFromNow() {
   return new Date(Date.now() + DEFAULT_UNLOCK_WINDOW_HOURS * 60 * 60 * 1000).toISOString();
 }
 
-function trendTarget(count: number) {
-  if (count <= DEFAULT_UNLOCK_THRESHOLD) return DEFAULT_UNLOCK_THRESHOLD;
-  let target = DEFAULT_UNLOCK_THRESHOLD * 2;
-  while (count > target) target *= 2;
-  return target;
-}
-
 function isPast(value?: string | null) {
   if (!value) return false;
   return new Date(value).getTime() <= Date.now();
@@ -392,7 +385,7 @@ export async function getOrCreateOpenProductPool(product: { id: string; pool_key
           unlock_price: unlockPrice(currentPrice),
           mrp: product.mrp ?? currentPrice,
           current_market_price: currentPrice,
-          status: existing.status === "unlocked" ? "pooling" : existing.status,
+          status: existing.status,
           updated_at: new Date().toISOString(),
         })
         .eq("id", existing.id)
@@ -436,7 +429,7 @@ export async function addProductToPoolCart(profileId: string, pool: Record<strin
   if (!supabase) throw new Error("Supabase admin client is not configured.");
 
   if (["closed", "expired"].includes(String(pool.status))) {
-    throw new Error(String(pool.status) === "closed" ? "This product trend is closed." : "This product trend is no longer active.");
+    throw new Error(String(pool.status) === "closed" ? "This product pool is closed." : "This product pool is no longer active.");
   }
 
   const poolSnapshot = pool.source_snapshot && typeof pool.source_snapshot === "object" ? pool.source_snapshot as Record<string, unknown> : {};
@@ -520,12 +513,16 @@ export async function recalculatePoolJoinStatus(poolId: string) {
 
   const joinCount = count ?? 0;
   const now = new Date().toISOString();
+  const unlockThreshold = Number(current.unlock_threshold ?? DEFAULT_UNLOCK_THRESHOLD);
+  const hasUnlocked = joinCount >= unlockThreshold;
+  const nextStatus = hasUnlocked && current.status !== "closed" && current.status !== "expired" ? "unlocked" : current.status;
   const { data: updated, error } = await supabase
     .from("product_pools")
     .update({
       current_join_count: joinCount,
-      unlock_threshold: trendTarget(joinCount),
-      status: current.status === "unlocked" ? "pooling" : current.status,
+      unlock_threshold: unlockThreshold,
+      status: nextStatus,
+      unlocked_at: hasUnlocked ? current.unlocked_at ?? now : current.unlocked_at,
       updated_at: now,
     })
     .eq("id", poolId)

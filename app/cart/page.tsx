@@ -26,11 +26,11 @@ export default async function CartPage() {
               Back to homepage
             </Link>
             <p className="text-sm font-semibold uppercase tracking-[0.16em] text-cyan-700">Your cart</p>
-            <h1 className="mt-1 text-4xl font-semibold tracking-tight text-slate-950">Tracked products</h1>
-            <p className="mt-2 text-slate-600">See what you added and how many other carts contain the same products.</p>
+            <h1 className="mt-1 text-4xl font-semibold tracking-tight text-slate-950">Joined product pools</h1>
+            <p className="mt-2 text-slate-600">Track the pools you joined and how close each product is to unlock its target price.</p>
           </div>
           <Link href="/" className="inline-flex h-11 items-center justify-center rounded-[10px] border border-slate-200 bg-white px-5 text-sm font-semibold text-slate-950">
-            Add more products
+            Join more pools
           </Link>
         </div>
 

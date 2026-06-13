@@ -25,11 +25,11 @@ const timeOptions = [
   { label: "This week", value: "week" },
   { label: "Newly Added", value: "new" },
 ] as const;
-const homeInstructionSteps = ["Search a product", "Add it to your cart", "Watch products trend in real time"];
+const homeInstructionSteps = ["Search a Nykaa product", "Join its product pool for free", "Get notified at 20% off unlock"];
 const sheetInstructionSteps = [
-  "Add products you are considering to your cart.",
-  "See how many other carts contain the same product.",
-  "Use the trending count to decide what is worth waiting for.",
+  "Join the product pool for free.",
+  "The target price is 20% lower than Nykaa.",
+  "We notify you when the pool unlocks.",
 ];
 type NykaaSearchResult = {
   id: string;
@@ -46,7 +46,7 @@ function poolCta(pool: TrendingProductPool) {
   if (pool.status === "closed") return "Closed";
   if (pool.status === "expired") return "Expired";
   if (pool.userHasJoined) return "View Cart";
-  return "Add to Cart";
+  return "Join Pool";
 }
 
 function Progress({ value, tone = "rose" }: { value: number; tone?: "rose" | "emerald" }) {
@@ -62,19 +62,13 @@ function formatCount(count?: number | null) {
   return count >= 1000 ? `${(count / 1000).toFixed(count >= 10_000 ? 0 : 1)}k` : count.toLocaleString("en-IN");
 }
 
-function trendTarget(count: number) {
-  if (count <= 50) return 50;
-  let target = 100;
-  while (count > target) target *= 2;
-  return target;
-}
-
 function poolDisplayValues(pool: TrendingProductPool) {
   const product = pool.product;
   const price = pool.currentMarketPrice ?? product.salePrice ?? product.mrp ?? product.priceMin;
+  const targetPrice = pool.unlockPrice ?? (price ? Math.round(Number(price) * 0.8) : null);
   const productUrl = product.productUrl ?? product.sourceUrl ?? product.canonicalUrl ?? "";
 
-  return { price, productUrl };
+  return { price, targetPrice, productUrl };
 }
 
 function filterHref(category: string | null, time: string, page?: number) {
@@ -134,9 +128,9 @@ function InstructionMarquee({ steps, compact = false }: { steps: string[]; compa
 function TrendingPoolCard({ pool, onOpenShare }: { pool: TrendingProductPool; onOpenShare: (pool: TrendingProductPool) => void }) {
   const router = useRouter();
   const product = pool.product;
-  const { price, productUrl } = poolDisplayValues(pool);
-  const nextTrendTarget = trendTarget(pool.currentJoinCount);
-  const trendProgress = Math.min(100, Math.round((pool.currentJoinCount / nextTrendTarget) * 100));
+  const { price, targetPrice, productUrl } = poolDisplayValues(pool);
+  const remainingToUnlock = Math.max(0, pool.unlockThreshold - pool.currentJoinCount);
+  const poolProgress = Math.min(100, Math.round((pool.currentJoinCount / Math.max(1, pool.unlockThreshold)) * 100));
   const disabled = pool.status === "closed" || pool.status === "expired";
 
   function act() {
@@ -165,7 +159,7 @@ function TrendingPoolCard({ pool, onOpenShare }: { pool: TrendingProductPool; on
             <p className="line-clamp-1 text-[11px] font-semibold uppercase tracking-[0.12em] text-cyan-700">{product.brand?.name ?? product.vendor ?? "Product"}</p>
             <span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-emerald-50 px-2 py-1 text-[10px] font-semibold text-emerald-800">
               <TrendingUp className="h-3 w-3" />
-              Trending
+              Pooling
             </span>
           </div>
           <button type="button" onClick={() => onOpenShare(pool)} className="line-clamp-2 min-h-10 text-left text-sm font-semibold leading-5 text-slate-950">
@@ -191,9 +185,10 @@ function TrendingPoolCard({ pool, onOpenShare }: { pool: TrendingProductPool; on
         <div className="mt-3 rounded-[12px] bg-slate-50 p-2.5 sm:p-3">
           <div className="flex items-start justify-between gap-3">
             <div className="min-w-0">
-              <p className="text-xs font-semibold text-emerald-700">Price on Nykaa</p>
+              <p className="text-xs font-semibold text-emerald-700">Target price</p>
               <div className="mt-1 flex flex-wrap items-baseline gap-x-3 gap-y-1">
-                <p className="text-xl font-semibold text-slate-950">{formatCatalogPrice(price ? Math.round(Number(price)) : null)}</p>
+                <p className="text-xl font-semibold text-slate-950">{formatCatalogPrice(targetPrice ? Math.round(Number(targetPrice)) : null)}</p>
+                {price ? <p className="text-xs font-semibold text-slate-500">Nykaa {formatCatalogPrice(Math.round(Number(price)))}</p> : null}
               </div>
             </div>
             <button
@@ -209,10 +204,10 @@ function TrendingPoolCard({ pool, onOpenShare }: { pool: TrendingProductPool; on
 
         <div className="mt-3 space-y-2">
           <div className="flex items-center justify-between text-xs font-semibold text-slate-600">
-            <span>{pool.currentJoinCount} carts tracking this</span>
-            {/* <span>{nextTrendTarget}</span> */}
+            <span>{pool.currentJoinCount}/{pool.unlockThreshold} joined</span>
+            <span>{remainingToUnlock ? `${remainingToUnlock} left` : "Unlocked"}</span>
           </div>
-          <Progress value={trendProgress} tone="emerald" />
+          <Progress value={poolProgress} tone="emerald" />
         </div>
 
         <button
@@ -242,12 +237,12 @@ function PoolShareSheet({ pool, onClose, onOpenPool }: { pool: TrendingProductPo
   const [alternativeMessage, setAlternativeMessage] = useState("");
   const [alternativeResults, setAlternativeResults] = useState<NykaaSearchResult[]>([]);
   const product = pool.product;
-  const { price, productUrl } = poolDisplayValues(pool);
-  const nextTrendTarget = trendTarget(pool.currentJoinCount);
-  const trendProgress = Math.min(100, Math.round((pool.currentJoinCount / nextTrendTarget) * 100));
+  const { price, targetPrice, productUrl } = poolDisplayValues(pool);
+  const remainingToUnlock = Math.max(0, pool.unlockThreshold - pool.currentJoinCount);
+  const poolProgress = Math.min(100, Math.round((pool.currentJoinCount / Math.max(1, pool.unlockThreshold)) * 100));
   const disabled = pool.status === "closed" || pool.status === "expired";
   const shareUrl = typeof window === "undefined" ? `/?pool=${pool.id}` : `${window.location.origin}/?pool=${pool.id}`;
-  const shareText = `I found ${product.title} trending. Add it to your cart if you're watching it too.`;
+  const shareText = `Join this product pool for ${product.title}. It unlocks when enough people join.`;
 
   useEffect(() => {
     setAlternativeResults([]);
@@ -361,8 +356,8 @@ function PoolShareSheet({ pool, onClose, onOpenPool }: { pool: TrendingProductPo
       <section className="relative max-h-[88vh] w-full max-w-xl overflow-hidden rounded-t-[24px] bg-white shadow-[0_30px_90px_rgba(15,23,42,0.28)] sm:rounded-[24px]">
         <div className="flex items-center justify-between border-b border-slate-100 px-4 py-3 sm:px-5">
           <div>
-            <p className="text-xs font-semibold uppercase tracking-[0.16em] text-cyan-700">Trending product</p>
-            <h3 className="text-lg font-semibold tracking-tight text-slate-950">People are adding this</h3>
+            <p className="text-xs font-semibold uppercase tracking-[0.16em] text-cyan-700">Product pool</p>
+            <h3 className="text-lg font-semibold tracking-tight text-slate-950">Join to unlock 20% off</h3>
           </div>
           <button type="button" onClick={onClose} aria-label="Close" className="inline-flex h-9 w-9 items-center justify-center rounded-full bg-slate-100 text-slate-700 transition hover:bg-slate-200">
             <X className="h-4 w-4" />
@@ -393,7 +388,7 @@ function PoolShareSheet({ pool, onClose, onOpenPool }: { pool: TrendingProductPo
               <div className="mt-2 flex flex-wrap items-center gap-2">
                 <span className="inline-flex items-center gap-1 rounded-full bg-emerald-100 px-2.5 py-1 text-xs font-semibold text-emerald-800">
                   <TrendingUp className="h-3.5 w-3.5" />
-                  {formatCount(pool.currentJoinCount)} carts
+                  {formatCount(pool.currentJoinCount)} joined
                 </span>
               </div>
             </div>
@@ -402,9 +397,10 @@ function PoolShareSheet({ pool, onClose, onOpenPool }: { pool: TrendingProductPo
           <div className="mt-4 rounded-[16px] bg-slate-50 p-3">
             <div className="flex items-start justify-between gap-3">
               <div>
-                <p className="text-xs font-semibold text-emerald-700">Price on Nykaa</p>
+                <p className="text-xs font-semibold text-emerald-700">Target price</p>
                 <div className="mt-1 flex flex-wrap items-baseline gap-x-3 gap-y-1">
-                  <p className="text-2xl font-semibold text-slate-950">{formatCatalogPrice(price ? Math.round(Number(price)) : null)}</p>
+                  <p className="text-2xl font-semibold text-slate-950">{formatCatalogPrice(targetPrice ? Math.round(Number(targetPrice)) : null)}</p>
+                  {price ? <p className="text-sm font-semibold text-slate-500">Nykaa {formatCatalogPrice(Math.round(Number(price)))}</p> : null}
                 </div>
               </div>
               <button
@@ -420,14 +416,15 @@ function PoolShareSheet({ pool, onClose, onOpenPool }: { pool: TrendingProductPo
 
           <div className="mt-4 rounded-[16px] border border-slate-200 p-3">
             <div className="flex items-center justify-between text-sm font-semibold text-slate-700">
-              <span>{pool.currentJoinCount} carts tracking this</span>
-              <span>{pool.currentJoinCount} / {nextTrendTarget}</span>
+              <span>{remainingToUnlock ? `${remainingToUnlock} more members to unlock` : "Target price unlocked"}</span>
+              <span>{pool.currentJoinCount} / {pool.unlockThreshold}</span>
             </div>
             <div className="mt-2">
-              <Progress value={trendProgress} tone="emerald" />
+              <Progress value={poolProgress} tone="emerald" />
             </div>
           </div>
 
+          {false ? (
           <div className="mt-4 rounded-[16px] border border-slate-200 p-3">
             <div className="flex items-center justify-between gap-3">
               <div>
@@ -438,7 +435,7 @@ function PoolShareSheet({ pool, onClose, onOpenPool }: { pool: TrendingProductPo
 
             {pool.alternatives?.length ? (
               <div className="-mx-3 mt-3 flex gap-2 overflow-x-auto px-3 pb-1">
-                {pool.alternatives.slice(0, 8).map((alternative) => {
+                {pool.alternatives?.slice(0, 8).map((alternative) => {
                   const alternativeProduct = alternative.product;
                   const alternativeValues = poolDisplayValues(alternative);
                   return (
@@ -459,7 +456,7 @@ function PoolShareSheet({ pool, onClose, onOpenPool }: { pool: TrendingProductPo
                         <p className="mt-1 line-clamp-2 min-h-8 text-xs font-semibold leading-4 text-slate-900">{alternativeProduct.title}</p>
                         <div className="mt-1 flex items-center justify-between gap-2">
                           <span className="text-xs font-semibold text-slate-950">{formatCatalogPrice(alternativeValues.price ? Math.round(Number(alternativeValues.price)) : null)}</span>
-                          <span className="text-[10px] font-semibold text-emerald-700">{formatCount(alternative.currentJoinCount)} carts</span>
+                          <span className="text-[10px] font-semibold text-emerald-700">{formatCount(alternative.currentJoinCount)} joined</span>
                         </div>
                       </div>
                     </button>
@@ -519,7 +516,7 @@ function PoolShareSheet({ pool, onClose, onOpenPool }: { pool: TrendingProductPo
                 className="inline-flex items-center gap-2 rounded-full px-2 py-1 text-xs font-semibold text-cyan-800 transition hover:bg-cyan-50"
               >
                 <Link2 className="h-3.5 w-3.5" />
-                {showAlternativePasteLink ? "Hide link paste" : "Paste a Nykaa link instead"}
+                {showAlternativePasteLink ? "Hide link paste" : "Paste a Nykaa link to start a discount Pool"}
               </button>
               {showAlternativePasteLink ? (
                 <div className="grid gap-2 rounded-[14px] bg-slate-50 p-2 sm:grid-cols-[1fr_auto]">
@@ -545,6 +542,7 @@ function PoolShareSheet({ pool, onClose, onOpenPool }: { pool: TrendingProductPo
               {alternativeMessage ? <p className="rounded-[10px] bg-emerald-50 px-3 py-2 text-sm font-semibold text-emerald-700">{alternativeMessage}</p> : null}
             </div>
           </div>
+          ) : null}
 
           <div className="mt-4 rounded-[16px] bg-[#fff6f8] px-2 py-2">
             <InstructionMarquee steps={sheetInstructionSteps} compact />
@@ -552,7 +550,7 @@ function PoolShareSheet({ pool, onClose, onOpenPool }: { pool: TrendingProductPo
 
           {error ? <p className="mt-3 rounded-[10px] bg-rose-50 px-3 py-2 text-sm font-semibold text-rose-700">{error}</p> : null}
 
-          <div className="sticky bottom-0 -mx-4 mt-5 grid gap-2 border-t border-slate-100 bg-white/95 px-4 py-3 backdrop-blur sm:-mx-5 sm:grid-cols-[1fr_1fr] sm:px-5">
+        <div className="sticky bottom-0 -mx-4 mt-5 grid gap-2 border-t border-slate-100 bg-white/95 px-4 py-3 backdrop-blur sm:-mx-5 sm:grid-cols-[1fr_1fr] sm:px-5">
             <button
               type="button"
               onClick={sharePool}
@@ -567,7 +565,7 @@ function PoolShareSheet({ pool, onClose, onOpenPool }: { pool: TrendingProductPo
               disabled={busy || disabled}
               className="inline-flex h-11 items-center justify-center gap-2 rounded-[12px] bg-rose-500 px-4 text-sm font-semibold text-white transition hover:bg-rose-600 disabled:bg-slate-200 disabled:text-slate-500"
             >
-              {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <ShoppingBag className="h-4 w-4" />}
+              {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Users className="h-4 w-4" />}
               {busy ? "Adding..." : poolCta(pool)}
             </button>
           </div>
@@ -632,7 +630,7 @@ export function ProductMarketplaceHome({ pools, selectedCategory = null, selecte
         throw new Error(payload.message ?? "Could not add this product.");
       }
 
-      setSuccess("Added to your cart. Track how many people are watching it.");
+      setSuccess("Joined the pool. We will notify you when the target price unlocks.");
       if (payload.pool?.id) {
         setActivePoolOverride(null);
         setActivePoolId(payload.pool.id);
@@ -694,20 +692,24 @@ export function ProductMarketplaceHome({ pools, selectedCategory = null, selecte
         </div>
       </header>
 
-      <section className="mx-auto grid max-w-6xl gap-8 px-4 pb-8 pt-7 lg:grid-cols-[1.05fr_0.95fr] lg:items-center lg:pt-12">
+      <section className="mx-auto max-w-6xl px-4 pb-8 pt-7 lg:pt-12">
         <div>
           <div className="inline-flex items-center gap-2 rounded-full bg-lime-100 px-3 py-1 text-xs font-semibold text-lime-900">
             <Sparkles className="h-3.5 w-3.5" />
-            Live cart trends
+            Live product discount pools
           </div>
           <h1 className="mt-5 max-w-2xl text-5xl font-semibold tracking-tight text-slate-950 sm:text-6xl">
-            Discover trending products and their alternatives
+            Join discount pools for your favourite Nykaa Products and Save big!
           </h1>
-          <p className="mt-4 max-w-xl text-base leading-7 text-slate-600">
-            Search for a Nykaa product, add it to your cart, and see what people are watching.
-          </p>
+          {/* <p className="mt-4 max-w-xl text-base leading-7 text-slate-600">
+            Search a Nykaa product, join its pool, and get notified when enough people unlock the 20% off target price.
+          </p> */}
 
-          <div className="mt-6 rounded-[24px] border border-white bg-white/95 p-3 shadow-[0_18px_60px_rgba(15,23,42,0.08)] ring-1 ring-slate-100 sm:p-4">
+          <div className="mt-6 min-w-0 overflow-hidden rounded-[22px] border border-rose-100 bg-[#ffe8ee] p-4 shadow-[0_18px_60px_rgba(190,56,96,0.12)] sm:p-5">
+            <InstructionMarquee steps={homeInstructionSteps} />
+          </div>
+
+          <div className="mt-4 rounded-[24px] border border-white bg-white/95 p-3 shadow-[0_18px_60px_rgba(15,23,42,0.08)] ring-1 ring-slate-100 sm:p-4">
             <form onSubmit={searchNykaaProducts} className="grid gap-2 sm:grid-cols-[1fr_auto]">
               <label className="flex h-12 min-w-0 items-center gap-3 rounded-[16px] bg-slate-50 px-4 ring-1 ring-slate-100 transition focus-within:ring-cyan-300">
                 <Search className="h-4 w-4 shrink-0 text-cyan-700" />
@@ -776,7 +778,7 @@ export function ProductMarketplaceHome({ pools, selectedCategory = null, selecte
                 className="inline-flex items-center gap-2 rounded-full px-2 py-1 text-xs font-semibold text-cyan-800 transition hover:bg-cyan-50"
               >
                 <Link2 className="h-3.5 w-3.5" />
-                {showPasteLink ? "Hide link paste" : "Paste a Nykaa link instead"}
+                {showPasteLink ? "Hide link paste" : "Paste a Nykaa link to start a discount Pool"}
               </button>
             </div>
 
@@ -793,7 +795,7 @@ export function ProductMarketplaceHome({ pools, selectedCategory = null, selecte
                 </label>
                 <button disabled={busy || !url.trim()} className="inline-flex h-12 items-center justify-center gap-2 rounded-[14px] bg-slate-950 px-5 text-sm font-semibold text-white shadow-sm transition hover:bg-slate-800 disabled:bg-slate-200 disabled:text-slate-500">
                   {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <ArrowRight className="h-4 w-4" />}
-                  Add to Cart
+                  Join Pool
                 </button>
               </form>
             ) : null}
@@ -806,27 +808,13 @@ export function ProductMarketplaceHome({ pools, selectedCategory = null, selecte
             ) : null}
           </div>
         </div>
-
-        <div className="min-w-0 overflow-hidden rounded-[22px] border border-rose-100 bg-[#ffe8ee] p-5 shadow-[0_24px_80px_rgba(190,56,96,0.14)]">
-          <InstructionMarquee steps={homeInstructionSteps} />
-          {/* <div className="mt-4 rounded-[16px] bg-slate-950 p-4 text-white">
-            <div className="flex items-center justify-between">
-              <p className="text-sm font-semibold">Trend score grows with carts</p>
-              <TrendingUp className="h-4 w-4 text-lime-300" />
-            </div>
-            <div className="mt-4 h-2 overflow-hidden rounded-full bg-white/15">
-              <div className="h-full w-3/4 rounded-full bg-lime-300" />
-            </div>
-            <p className="mt-3 text-xs font-semibold text-white/70">The more carts a product appears in, the higher it climbs.</p>
-          </div> */}
-        </div>
       </section>
 
       <section className="mx-auto max-w-6xl px-4 pb-14">
         <div className="mb-4 flex items-end justify-between gap-3">
           <div>
-            <p className="text-sm font-semibold uppercase tracking-[0.16em] text-cyan-700">Trending</p>
-            <h2 className="mt-1 text-2xl font-semibold tracking-tight text-slate-950">Products people have in cart</h2>
+            <p className="text-sm font-semibold uppercase tracking-[0.16em] text-cyan-700">Pooling now</p>
+            <h2 className="mt-1 text-2xl font-semibold tracking-tight text-slate-950">Products close to target price</h2>
           </div>
           <Link href="/cart" className="hidden h-10 items-center justify-center rounded-[10px] border border-slate-200 bg-white px-4 text-sm font-semibold text-slate-950 sm:inline-flex">
             View cart
@@ -895,8 +883,8 @@ export function ProductMarketplaceHome({ pools, selectedCategory = null, selecte
           </>
         ) : (
           <div className="rounded-[18px] border border-dashed border-slate-300 bg-white p-10 text-center">
-            <h3 className="text-xl font-semibold text-slate-950">{pools.length ? "No matching products" : "No cart trends yet"}</h3>
-            <p className="mt-2 text-sm text-slate-500">{selectedCategory ? "Try another category." : "Add the first product."}</p>
+            <h3 className="text-xl font-semibold text-slate-950">{pools.length ? "No matching products" : "No active pools yet"}</h3>
+            <p className="mt-2 text-sm text-slate-500">{selectedCategory ? "Try another category." : "Search a Nykaa product to start the first pool."}</p>
           </div>
         )}
       </section>

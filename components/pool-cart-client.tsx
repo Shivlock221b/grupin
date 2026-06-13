@@ -16,13 +16,6 @@ function progress(current: number, threshold: number) {
   return Math.min(100, Math.round((current / threshold) * 100));
 }
 
-function trendTarget(count: number) {
-  if (count <= 50) return 50;
-  let target = 100;
-  while (count > target) target *= 2;
-  return target;
-}
-
 function PoolProgress({ value }: { value: number }) {
   return (
     <div className="h-2 overflow-hidden rounded-full bg-slate-100">
@@ -41,7 +34,7 @@ export function PoolCartClient({ cartItems }: PoolCartClientProps) {
     setError("");
     setCopiedPoolId("");
     const shareUrl = typeof window === "undefined" ? `/?pool=${poolId}` : `${window.location.origin}/?pool=${poolId}`;
-    const shareText = `I added ${title} to my cart. Add it too if you're watching this product.`;
+    const shareText = `Join this product pool for ${title}. It unlocks when enough people join.`;
 
     if (typeof navigator !== "undefined" && "share" in navigator) {
       try {
@@ -85,8 +78,8 @@ export function PoolCartClient({ cartItems }: PoolCartClientProps) {
   if (!cartItems.length) {
     return (
       <div className="rounded-[18px] border border-dashed border-slate-300 bg-white p-10 text-center">
-        <h2 className="text-xl font-semibold text-slate-950">Your cart is empty</h2>
-        <p className="mt-2 text-sm text-slate-500">Add a Nykaa Product in your cart to start tracking it.</p>
+        <h2 className="text-xl font-semibold text-slate-950">No product pools yet</h2>
+        <p className="mt-2 text-sm text-slate-500">Search a Nykaa product to join its pool and get notified at the target price.</p>
       </div>
     );
   }
@@ -97,11 +90,12 @@ export function PoolCartClient({ cartItems }: PoolCartClientProps) {
       {cartItems.map((item) => {
         const pool = item.pool;
         const product = item.product;
-        const nextTrendTarget = pool ? trendTarget(pool.currentJoinCount) : 50;
-        const joinProgress = pool ? progress(pool.currentJoinCount, nextTrendTarget) : 0;
+        const joinProgress = pool ? progress(pool.currentJoinCount, pool.unlockThreshold) : 0;
         const price = Number(item.productSnapshot.currentPrice ?? product?.salePrice ?? product?.mrp ?? 0) || null;
+        const targetPrice = pool?.unlockPrice ?? (price ? Math.round(price * 0.8) : null);
         const closed = pool?.status === "closed" || pool?.status === "expired";
         const title = String(item.productSnapshot.title ?? product?.title ?? "Product");
+        const remainingToUnlock = pool ? Math.max(0, pool.unlockThreshold - pool.currentJoinCount) : 0;
 
         return (
           <article key={item.id} className="rounded-[18px] border border-slate-200 bg-white p-4 shadow-[0_14px_42px_rgba(15,23,42,0.06)]">
@@ -114,12 +108,13 @@ export function PoolCartClient({ cartItems }: PoolCartClientProps) {
                     <h2 className="mt-1 line-clamp-2 text-base font-semibold text-slate-950">{title}</h2>
                   </div>
                   <span className={`w-fit rounded-full px-3 py-1 text-xs font-semibold ${closed ? "bg-slate-100 text-slate-600" : "bg-emerald-100 text-emerald-800"}`}>
-                    {closed ? "Closed" : "Tracking"}
+                    {closed ? "Closed" : pool?.status === "unlocked" ? "Unlocked" : "Pooling"}
                   </span>
                 </div>
 
                 <div className="mt-3 flex flex-wrap items-baseline gap-3">
-                  {price ? <p className="text-lg font-semibold text-slate-950">{formatCatalogPrice(price)}</p> : null}
+                  {targetPrice ? <p className="text-lg font-semibold text-slate-950">{formatCatalogPrice(targetPrice)}</p> : null}
+                  {price ? <p className="text-sm font-semibold text-slate-500">Nykaa {formatCatalogPrice(price)}</p> : null}
                   <p className="text-sm font-semibold text-slate-500">Qty {item.quantity}</p>
                 </div>
               </div>
@@ -129,8 +124,8 @@ export function PoolCartClient({ cartItems }: PoolCartClientProps) {
               <div className="mt-4">
                 <div className="rounded-[14px] bg-slate-50 p-3">
                   <div className="mb-2 flex justify-between text-xs font-semibold text-slate-600">
-                    <span>{pool.currentJoinCount} carts tracking this</span>
-                    {/* <span>{nextTrendTarget}</span> */}
+                    <span>{pool.currentJoinCount}/{pool.unlockThreshold} joined</span>
+                    <span>{remainingToUnlock ? `${remainingToUnlock} left` : "Unlocked"}</span>
                   </div>
                   <PoolProgress value={joinProgress} />
                 </div>

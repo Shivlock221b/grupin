@@ -11,7 +11,7 @@ export async function POST(request: NextRequest) {
     const profile = await getCurrentAccountProfile();
 
     if (!profile) {
-      return NextResponse.json({ message: "Login required. Verify your phone to add this product." }, { status: 401 });
+      return NextResponse.json({ message: "Login to join this pool and get notified when the target price unlocks." }, { status: 401 });
     }
 
     const { url, category } = await request.json();
