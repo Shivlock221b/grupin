@@ -965,8 +965,9 @@ export async function listTrendingProductPools(profileId?: string | null, limit 
     .slice(0, limit);
 
   const visiblePoolIds = pools.map((pool) => pool.id);
+  const includeAlternatives = false;
 
-  if (visiblePoolIds.length) {
+  if (includeAlternatives && visiblePoolIds.length) {
     const { data: alternativeRows, error: alternativesError } = await supabase
       .from("product_pool_alternatives")
       .select("pool_id, alternative_pool_id, created_at")

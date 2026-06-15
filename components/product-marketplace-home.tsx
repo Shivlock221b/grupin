@@ -3,7 +3,7 @@
 import { FormEvent, useEffect, useState, useTransition } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { ArrowRight, CheckCircle2, Copy, ExternalLink, Filter, Link2, Loader2, Search, Share2, ShoppingBag, Sparkles, Star, TrendingUp, Users, X } from "lucide-react";
+import { ArrowRight, CheckCircle2, Copy, ExternalLink, Filter, Link2, Loader2, Search, Share2, ShoppingBag, Star, TrendingUp, Users, X } from "lucide-react";
 import { AccountMenu } from "@/components/account-menu";
 import { productCategoryOptions } from "@/lib/product-category-inference";
 import { TrendingProductPool } from "@/lib/types";
@@ -25,7 +25,7 @@ const timeOptions = [
   { label: "This week", value: "week" },
   { label: "Newly Added", value: "new" },
 ] as const;
-const homeInstructionSteps = ["Search a Nykaa product", "Join its product pool for free", "Get notified at 20% off unlock"];
+const homeInstructionSteps = ["Search a Nykaa product", "Join discount pool for free", "Get notified at 20% off unlock"];
 const sheetInstructionSteps = [
   "Join the product pool for free.",
   "The target price is 20% lower than Nykaa.",
@@ -83,7 +83,7 @@ function filterHref(category: string | null, time: string, page?: number) {
 function LogoMark() {
   return (
     <Link href="/" aria-label="Home" className="grid h-11 w-11 place-items-center overflow-hidden rounded-full bg-white shadow-sm ring-1 ring-slate-200 transition hover:ring-cyan-200">
-      <img src="/icon.svg" alt="" className="h-8 w-8" />
+      <img src="/icon.svg" alt="" className="h-9 w-9 rounded-full object-cover" />
     </Link>
   );
 }
@@ -578,11 +578,9 @@ function PoolShareSheet({ pool, onClose, onOpenPool }: { pool: TrendingProductPo
 export function ProductMarketplaceHome({ pools, selectedCategory = null, selectedTime = "all", nextPage = 2, hasMore = false }: ProductMarketplaceHomeProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const [url, setUrl] = useState("");
   const [nykaaQuery, setNykaaQuery] = useState("");
   const [nykaaResults, setNykaaResults] = useState<NykaaSearchResult[]>([]);
   const [nykaaSearchBusy, setNykaaSearchBusy] = useState(false);
-  const [showPasteLink, setShowPasteLink] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
@@ -636,7 +634,6 @@ export function ProductMarketplaceHome({ pools, selectedCategory = null, selecte
         setActivePoolId(payload.pool.id);
         router.replace(`/?pool=${payload.pool.id}`, { scroll: false });
       }
-      setUrl("");
       setNykaaResults([]);
       router.refresh();
     } catch (submitError) {
@@ -644,11 +641,6 @@ export function ProductMarketplaceHome({ pools, selectedCategory = null, selecte
     } finally {
       setBusy(false);
     }
-  }
-
-  async function submit(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    await addProductUrl(url);
   }
 
   async function searchNykaaProducts(event: FormEvent<HTMLFormElement>) {
@@ -668,7 +660,7 @@ export function ProductMarketplaceHome({ pools, selectedCategory = null, selecte
       if (!response.ok) throw new Error(payload.message ?? "Could not search Nykaa.");
       setNykaaResults(Array.isArray(payload.results) ? payload.results : []);
       if (!payload.results?.length) {
-        setError("No Nykaa products found. Try pasting the product link instead.");
+        setError("No Nykaa products found. Try a more specific product name.");
       }
     } catch (searchError) {
       setError(searchError instanceof Error ? searchError.message : "Could not search Nykaa.");
@@ -692,20 +684,9 @@ export function ProductMarketplaceHome({ pools, selectedCategory = null, selecte
         </div>
       </header>
 
-      <section className="mx-auto max-w-6xl px-4 pb-8 pt-7 lg:pt-12">
+      <section className="mx-auto max-w-6xl px-4 pb-8 pt-3 lg:pt-5">
         <div>
-          <div className="inline-flex items-center gap-2 rounded-full bg-lime-100 px-3 py-1 text-xs font-semibold text-lime-900">
-            <Sparkles className="h-3.5 w-3.5" />
-            Live product discount pools
-          </div>
-          <h1 className="mt-5 max-w-2xl text-5xl font-semibold tracking-tight text-slate-950 sm:text-6xl">
-            Join discount pools for your favourite Nykaa Products and Save big!
-          </h1>
-          {/* <p className="mt-4 max-w-xl text-base leading-7 text-slate-600">
-            Search a Nykaa product, join its pool, and get notified when enough people unlock the 20% off target price.
-          </p> */}
-
-          <div className="mt-6 min-w-0 overflow-hidden rounded-[22px] border border-rose-100 bg-[#ffe8ee] p-4 shadow-[0_18px_60px_rgba(190,56,96,0.12)] sm:p-5">
+          <div className="min-w-0 overflow-hidden rounded-[22px] border border-rose-100 bg-[#ffe8ee] p-4 shadow-[0_18px_60px_rgba(190,56,96,0.12)] sm:p-5">
             <InstructionMarquee steps={homeInstructionSteps} />
           </div>
 
@@ -722,7 +703,7 @@ export function ProductMarketplaceHome({ pools, selectedCategory = null, selecte
                       setNykaaResults([]);
                     }
                   }}
-                  placeholder="Search Nykaa products"
+                  placeholder="Search Nykaa products to start a Pool"
                   className="h-12 min-w-0 flex-1 bg-transparent text-sm font-semibold text-slate-950 outline-none placeholder:text-slate-400"
                 />
               </label>
@@ -771,34 +752,6 @@ export function ProductMarketplaceHome({ pools, selectedCategory = null, selecte
               </div>
             ) : null}
 
-            <div className="mt-3">
-              <button
-                type="button"
-                onClick={() => setShowPasteLink((current) => !current)}
-                className="inline-flex items-center gap-2 rounded-full px-2 py-1 text-xs font-semibold text-cyan-800 transition hover:bg-cyan-50"
-              >
-                <Link2 className="h-3.5 w-3.5" />
-                {showPasteLink ? "Hide link paste" : "Paste a Nykaa link to start a discount Pool"}
-              </button>
-            </div>
-
-            {showPasteLink ? (
-              <form onSubmit={submit} className="mt-3 grid gap-2 rounded-[18px] bg-slate-50 p-2 sm:grid-cols-[1fr_auto]">
-                <label className="flex h-12 min-w-0 items-center gap-3 rounded-[14px] bg-white px-4 ring-1 ring-slate-100 transition focus-within:ring-cyan-300">
-                  <Link2 className="h-4 w-4 shrink-0 text-cyan-700" />
-                  <input
-                    value={url}
-                    onChange={(event) => setUrl(event.target.value)}
-                    placeholder="Paste Nykaa product link"
-                    className="h-12 min-w-0 flex-1 bg-transparent text-sm font-semibold text-slate-950 outline-none placeholder:text-slate-400"
-                  />
-                </label>
-                <button disabled={busy || !url.trim()} className="inline-flex h-12 items-center justify-center gap-2 rounded-[14px] bg-slate-950 px-5 text-sm font-semibold text-white shadow-sm transition hover:bg-slate-800 disabled:bg-slate-200 disabled:text-slate-500">
-                  {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <ArrowRight className="h-4 w-4" />}
-                  Join Pool
-                </button>
-              </form>
-            ) : null}
             {error ? <p className="mt-3 rounded-[10px] bg-rose-50 px-3 py-2 text-sm font-semibold text-rose-700">{error}</p> : null}
             {success ? (
               <p className="mt-3 inline-flex items-center gap-2 rounded-[10px] bg-emerald-50 px-3 py-2 text-sm font-semibold text-emerald-800">

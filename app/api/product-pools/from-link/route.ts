@@ -3,6 +3,7 @@ import { getCurrentAccountProfile } from "@/lib/account-auth";
 import { inferProductCategory, productCategoryOptions } from "@/lib/product-category-inference";
 import { detectPlatformFromUrl, fetchProductFromUrl, normalizeProductUrlInput } from "@/lib/product-fetchers";
 import { addProductToPoolCart, findExistingNykaaProductFromUrl, getOrCreateOpenProductPool, productWithFetchedDisplay, upsertProductFromFetchedProduct } from "@/lib/product-pools";
+import { adminPhoneLabel, escapeTelegramHtml, sendTelegramMessage } from "@/lib/telegram";
 
 const allowedCategories = new Set<string>(productCategoryOptions);
 
@@ -53,6 +54,20 @@ export async function POST(request: NextRequest) {
     }
     const openPool = await getOrCreateOpenProductPool(product);
     const result = await addProductToPoolCart(profile.id, openPool, product);
+    const currentPrice = product.sale_price ?? product.mrp ?? null;
+    const targetPrice = result.pool?.unlock_price ?? (currentPrice ? Math.round(Number(currentPrice) * 0.8) : null);
+
+    void sendTelegramMessage({
+      text: [
+        "<b>Product pool joined</b>",
+        `Phone: ${escapeTelegramHtml(adminPhoneLabel(profile.phone))}`,
+        `Product: ${escapeTelegramHtml(product.title)}`,
+        `Pool: <b>${escapeTelegramHtml(result.pool.id)}</b>`,
+        `Members: ${escapeTelegramHtml(`${result.pool.current_join_count}/${result.pool.unlock_threshold}`)}`,
+        `Target price: ${escapeTelegramHtml(targetPrice ? `INR ${targetPrice}` : "Not available")}`,
+        `Source: search/new product`,
+      ].join("\n"),
+    }).catch((telegramError) => console.error("Telegram product pool notification failed:", telegramError));
 
     return NextResponse.json({
       product,
