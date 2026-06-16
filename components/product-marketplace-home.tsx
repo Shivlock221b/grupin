@@ -29,7 +29,7 @@ const homeInstructionSteps = ["Search a Nykaa product", "Join discount pool for 
 const sheetInstructionSteps = [
   "Join the product pool for free.",
   "The target price is 20% lower than Nykaa.",
-  "We will notify you when Nykaa code unlocks",
+  "We notify you when Nykaa code unlocks",
 ];
 type NykaaSearchResult = {
   id: string;
