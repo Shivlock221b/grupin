@@ -247,12 +247,16 @@ function TrendingPoolCard({ pool, onOpenShare }: { pool: TrendingProductPool; on
               Pooling
             </span>
           </div>
-          <button
-            type="button"
-            onClick={() => onOpenShare(pool)}
-            className="min-h-[3.75rem] overflow-hidden text-left text-sm font-semibold leading-5 text-slate-950 [display:-webkit-box] [-webkit-box-orient:vertical] [-webkit-line-clamp:3]"
-          >
-            {product.title}
+          <button type="button" onClick={() => onOpenShare(pool)} className="block min-h-[3.75rem] w-full overflow-hidden text-left">
+            <span
+              className="block max-h-[3.75rem] overflow-hidden text-sm font-semibold leading-5 text-slate-950 [display:-webkit-box] [-webkit-box-orient:vertical] [-webkit-line-clamp:3]"
+              style={{
+                WebkitBoxOrient: "vertical",
+                WebkitLineClamp: 3,
+              }}
+            >
+              {product.title}
+            </span>
           </button>
         </div>
 
