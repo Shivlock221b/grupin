@@ -229,7 +229,7 @@ function TrendingPoolCard({ pool, onOpenShare }: { pool: TrendingProductPool; on
   }
 
   return (
-    <article className="group overflow-hidden rounded-[16px] border border-slate-200 bg-white shadow-[0_14px_40px_rgba(15,118,110,0.06)] transition hover:-translate-y-0.5 hover:border-cyan-200 hover:shadow-[0_18px_50px_rgba(15,118,110,0.12)]">
+    <article className="group flex h-full flex-col overflow-hidden rounded-[16px] border border-slate-200 bg-white shadow-[0_14px_40px_rgba(15,118,110,0.06)] transition hover:-translate-y-0.5 hover:border-cyan-200 hover:shadow-[0_18px_50px_rgba(15,118,110,0.12)]">
       <button type="button" onClick={() => onOpenShare(pool)} className="relative block aspect-square w-full overflow-hidden bg-[#f7faf5] text-left">
         <img src={productImageUrl(product.primaryImage, 700)} alt="" className="h-full w-full object-contain p-3 transition duration-300 group-hover:scale-105 sm:p-5" loading="lazy" />
         {productUrl ? (
@@ -238,7 +238,7 @@ function TrendingPoolCard({ pool, onOpenShare }: { pool: TrendingProductPool; on
           </span>
         ) : null}
       </button>
-      <div className="p-3 sm:p-4">
+      <div className="flex flex-1 flex-col p-3 sm:p-4">
         <div className="min-w-0">
           <div className="mb-1 flex items-center justify-between gap-2">
             <p className="line-clamp-1 text-[11px] font-semibold uppercase tracking-[0.12em] text-cyan-700">{product.brand?.name ?? product.vendor ?? "Product"}</p>
@@ -295,15 +295,17 @@ function TrendingPoolCard({ pool, onOpenShare }: { pool: TrendingProductPool; on
           <Progress value={poolProgress} tone="emerald" />
         </div>
 
-        <button
-          type="button"
-          onClick={act}
-          disabled={disabled}
-          className="mt-3 inline-flex h-10 w-full items-center justify-center gap-2 rounded-[10px] bg-rose-500 px-2 text-xs font-semibold text-white transition hover:bg-rose-600 disabled:bg-slate-200 disabled:text-slate-500 sm:h-11 sm:px-3 sm:text-sm"
-        >
-          {pool.userHasJoined ? <ShoppingBag className="h-4 w-4" /> : <Users className="h-4 w-4" />}
-          {poolCta(pool)}
-        </button>
+        <div className="mt-auto pt-3">
+          <button
+            type="button"
+            onClick={act}
+            disabled={disabled}
+            className="inline-flex h-10 w-full items-center justify-center gap-2 rounded-[10px] bg-rose-500 px-2 text-xs font-semibold text-white transition hover:bg-rose-600 disabled:bg-slate-200 disabled:text-slate-500 sm:h-11 sm:px-3 sm:text-sm"
+          >
+            {pool.userHasJoined ? <ShoppingBag className="h-4 w-4" /> : <Users className="h-4 w-4" />}
+            {poolCta(pool)}
+          </button>
+        </div>
       </div>
     </article>
   );
