@@ -573,7 +573,7 @@ export function ProductTeamExperience({ product, initialUnlock = null, initialMe
                     <div className="h-full rounded-full bg-rose-500" style={{ width: `${Math.min(100, (cartCount / threshold) * 100)}%` }} />
                   </div>
                   <p className="mt-2 text-xs font-semibold text-rose-700">
-                    {teamMembersLeftToUnlock > 0 ? `${teamMembersLeftToUnlock} team member${teamMembersLeftToUnlock === 1 ? "" : "s"} left to unlock Team Price` : "Team Price unlocked"}
+                    {teamMembersLeftToUnlock > 0 ? `${teamMembersLeftToUnlock} team member${teamMembersLeftToUnlock === 1 ? "" : "s"} spots left for Team Price` : "Team Price unlocked"}
                   </p>
                 </div>
 

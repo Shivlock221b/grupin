@@ -56,6 +56,16 @@ function unlockDeadlineFromNow() {
   return new Date(Date.now() + DEFAULT_UNLOCK_WINDOW_HOURS * 60 * 60 * 1000).toISOString();
 }
 
+function nextRollingThreshold(joinCount: number, currentThreshold?: number | null) {
+  let threshold = Math.max(DEFAULT_UNLOCK_THRESHOLD, Number(currentThreshold ?? DEFAULT_UNLOCK_THRESHOLD));
+
+  while (joinCount >= threshold) {
+    threshold *= 2;
+  }
+
+  return threshold;
+}
+
 function isPast(value?: string | null) {
   if (!value) return false;
   return new Date(value).getTime() <= Date.now();
@@ -513,16 +523,15 @@ export async function recalculatePoolJoinStatus(poolId: string) {
 
   const joinCount = count ?? 0;
   const now = new Date().toISOString();
-  const unlockThreshold = Number(current.unlock_threshold ?? DEFAULT_UNLOCK_THRESHOLD);
-  const hasUnlocked = joinCount >= unlockThreshold;
-  const nextStatus = hasUnlocked && current.status !== "closed" && current.status !== "expired" ? "unlocked" : current.status;
+  const unlockThreshold = nextRollingThreshold(joinCount, current.unlock_threshold);
+  const nextStatus = current.status === "closed" || current.status === "expired" ? current.status : "pooling";
   const { data: updated, error } = await supabase
     .from("product_pools")
     .update({
       current_join_count: joinCount,
       unlock_threshold: unlockThreshold,
       status: nextStatus,
-      unlocked_at: hasUnlocked ? current.unlocked_at ?? now : current.unlocked_at,
+      unlocked_at: current.unlocked_at,
       updated_at: now,
     })
     .eq("id", poolId)

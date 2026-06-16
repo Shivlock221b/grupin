@@ -25,11 +25,11 @@ const timeOptions = [
   { label: "This week", value: "week" },
   { label: "Newly Added", value: "new" },
 ] as const;
-const homeInstructionSteps = ["Search a Nykaa product", "Join discount pool for free", "Get notified at 20% off unlock"];
+const homeInstructionSteps = ["Search a Nykaa product", "Join discount pool for free", "Unlock 20% off Nykaa coupon together"];
 const sheetInstructionSteps = [
   "Join the product pool for free.",
   "The target price is 20% lower than Nykaa.",
-  "We notify you when the pool unlocks.",
+  "We will notify you when Nykaa code unlocks",
 ];
 type NykaaSearchResult = {
   id: string;
@@ -88,6 +88,62 @@ function LogoMark() {
   );
 }
 
+function InstructionGraphic({ stepIndex, compact = false }: { stepIndex: number; compact?: boolean }) {
+  const sizeClass = compact ? "h-12 w-14" : "h-14 w-16";
+
+  if (stepIndex === 0) {
+    return (
+      <div className={`${sizeClass} relative shrink-0 overflow-hidden rounded-[14px] bg-cyan-50 ring-1 ring-cyan-100`}>
+        <div className="absolute left-2 top-2 h-9 w-8 rounded-[8px] bg-white shadow-sm">
+          <div className="mx-auto mt-1 h-3 w-4 rounded bg-rose-100" />
+          <div className="mx-auto mt-1 h-1 w-5 rounded bg-slate-200" />
+          <div className="mx-auto mt-1 h-1 w-4 rounded bg-slate-200" />
+        </div>
+        <div className="absolute bottom-2 right-2 grid h-7 w-7 place-items-center rounded-full bg-cyan-600 text-white shadow-sm">
+          <Search className="h-3.5 w-3.5" />
+        </div>
+        <div className="instruction-scan absolute left-1 top-1 h-0.5 w-12 rounded-full bg-cyan-500/70" />
+      </div>
+    );
+  }
+
+  if (stepIndex === 1) {
+    return (
+      <div className={`${sizeClass} relative shrink-0 overflow-hidden rounded-[14px] bg-emerald-50 ring-1 ring-emerald-100`}>
+        {[0, 1, 2].map((item) => (
+          <div
+            key={item}
+            className="instruction-person absolute grid h-7 w-7 place-items-center rounded-full bg-white text-emerald-700 shadow-sm"
+            style={{
+              left: `${8 + item * 15}px`,
+              top: `${18 - (item % 2) * 8}px`,
+              animationDelay: `${item * 0.35}s`,
+            }}
+          >
+            <Users className="h-3.5 w-3.5" />
+          </div>
+        ))}
+        <div className="absolute bottom-2 left-2 right-2 h-1.5 overflow-hidden rounded-full bg-white">
+          <div className="instruction-fill h-full rounded-full bg-emerald-500" />
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className={`${sizeClass} relative shrink-0 overflow-hidden rounded-[14px] bg-rose-50 ring-1 ring-rose-100`}>
+      <div className="instruction-coupon absolute left-2 top-3 rounded-[9px] bg-white px-2 py-1 shadow-sm">
+        <p className="text-[10px] font-bold text-rose-600">20% OFF</p>
+        <div className="mt-1 h-1 w-8 rounded bg-rose-100" />
+      </div>
+      <div className="absolute bottom-2 right-2 grid h-7 w-7 place-items-center rounded-full bg-rose-500 text-white shadow-sm">
+        <CheckCircle2 className="h-3.5 w-3.5" />
+      </div>
+      <div className="instruction-pop absolute right-3 top-2 h-2 w-2 rounded-full bg-amber-300" />
+    </div>
+  );
+}
+
 function InstructionMarquee({ steps, compact = false }: { steps: string[]; compact?: boolean }) {
   return (
     <div className="min-w-0 overflow-hidden [mask-image:linear-gradient(to_right,transparent,black_10%,black_90%,transparent)]">
@@ -102,8 +158,39 @@ function InstructionMarquee({ steps, compact = false }: { steps: string[]; compa
         .instruction-marquee-track:hover {
           animation-play-state: paused;
         }
+        @keyframes instructionScan {
+          0% { transform: translateY(0); opacity: 0; }
+          18% { opacity: 1; }
+          100% { transform: translateY(44px); opacity: 0; }
+        }
+        @keyframes instructionPerson {
+          0%, 100% { transform: translateY(0) scale(1); }
+          50% { transform: translateY(-4px) scale(1.04); }
+        }
+        @keyframes instructionFill {
+          0% { width: 20%; }
+          55%, 100% { width: 92%; }
+        }
+        @keyframes instructionCoupon {
+          0%, 100% { transform: rotate(-3deg) scale(1); }
+          50% { transform: rotate(2deg) scale(1.04); }
+        }
+        @keyframes instructionPop {
+          0%, 100% { transform: scale(0.6); opacity: 0.35; }
+          50% { transform: scale(1.3); opacity: 1; }
+        }
+        .instruction-scan { animation: instructionScan 2.3s ease-in-out infinite; }
+        .instruction-person { animation: instructionPerson 1.7s ease-in-out infinite; }
+        .instruction-fill { animation: instructionFill 2.1s ease-in-out infinite; }
+        .instruction-coupon { animation: instructionCoupon 1.9s ease-in-out infinite; }
+        .instruction-pop { animation: instructionPop 1.4s ease-in-out infinite; }
         @media (prefers-reduced-motion: reduce) {
-          .instruction-marquee-track {
+          .instruction-marquee-track,
+          .instruction-scan,
+          .instruction-person,
+          .instruction-fill,
+          .instruction-coupon,
+          .instruction-pop {
             animation: none;
           }
         }
@@ -112,11 +199,9 @@ function InstructionMarquee({ steps, compact = false }: { steps: string[]; compa
         {[...steps, ...steps].map((step, index) => (
           <div
             key={`${step}-${index}`}
-            className={`flex shrink-0 items-center gap-3 rounded-[16px] bg-white/80 ${compact ? "w-64 p-3" : "w-72 p-4"}`}
+            className={`flex shrink-0 items-center gap-3 rounded-[16px] bg-white/85 shadow-sm ring-1 ring-white/70 ${compact ? "w-64 p-3" : "w-72 p-3"}`}
           >
-            <div className={`${compact ? "h-8 w-8" : "h-10 w-10"} flex shrink-0 items-center justify-center rounded-full bg-rose-500 text-sm font-semibold text-white`}>
-              {(index % steps.length) + 1}
-            </div>
+            <InstructionGraphic stepIndex={index % steps.length} compact={compact} />
             <p className={`${compact ? "text-xs leading-4" : "text-sm"} font-semibold text-slate-800`}>{step}</p>
           </div>
         ))}
@@ -203,9 +288,9 @@ function TrendingPoolCard({ pool, onOpenShare }: { pool: TrendingProductPool; on
         </div>
 
         <div className="mt-3 space-y-2">
-          <div className="flex items-center justify-between text-xs font-semibold text-slate-600">
-            <span>{pool.currentJoinCount}/{pool.unlockThreshold} joined</span>
-            <span>{remainingToUnlock ? `${remainingToUnlock} left` : "Unlocked"}</span>
+          <div className="flex items-center justify-between gap-2 text-xs font-semibold text-slate-600">
+            <span className="min-w-0 truncate">{pool.currentJoinCount}/{pool.unlockThreshold}</span>
+            <span className="shrink-0 whitespace-nowrap text-right">{remainingToUnlock ? `${remainingToUnlock} spots left` : "Unlocked"}</span>
           </div>
           <Progress value={poolProgress} tone="emerald" />
         </div>
@@ -415,9 +500,9 @@ function PoolShareSheet({ pool, onClose, onOpenPool }: { pool: TrendingProductPo
           </div>
 
           <div className="mt-4 rounded-[16px] border border-slate-200 p-3">
-            <div className="flex items-center justify-between text-sm font-semibold text-slate-700">
-              <span>{remainingToUnlock ? `${remainingToUnlock} more members to unlock` : "Target price unlocked"}</span>
-              <span>{pool.currentJoinCount} / {pool.unlockThreshold}</span>
+            <div className="flex items-center justify-between gap-3 text-sm font-semibold text-slate-700">
+              <span className="min-w-0 truncate">{remainingToUnlock ? `${remainingToUnlock} more members to unlock` : "Target price unlocked"}</span>
+              <span className="shrink-0 whitespace-nowrap text-right">{pool.currentJoinCount} / {pool.unlockThreshold}</span>
             </div>
             <div className="mt-2">
               <Progress value={poolProgress} tone="emerald" />

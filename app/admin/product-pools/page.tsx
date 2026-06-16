@@ -83,7 +83,7 @@ export default async function AdminProductPoolsPage() {
                 <div>
                   <div className="mb-2 flex flex-wrap items-center justify-between gap-2 text-sm font-semibold text-slate-700">
                     <span>{pool.currentJoinCount}/{pool.unlockThreshold} members joined</span>
-                    <span>{pool.status === "unlocked" ? "Unlocked" : `${remaining} left to unlock`}</span>
+                    <span>{pool.status === "unlocked" ? "Unlocked" : `${remaining} spots left`}</span>
                   </div>
                   <div className="h-2 overflow-hidden rounded-full bg-slate-100">
                     <div className="h-full rounded-full bg-emerald-500" style={{ width: `${progress}%` }} />

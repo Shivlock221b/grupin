@@ -108,7 +108,7 @@ export function PoolCartClient({ cartItems }: PoolCartClientProps) {
                     <h2 className="mt-1 line-clamp-2 text-base font-semibold text-slate-950">{title}</h2>
                   </div>
                   <span className={`w-fit rounded-full px-3 py-1 text-xs font-semibold ${closed ? "bg-slate-100 text-slate-600" : "bg-emerald-100 text-emerald-800"}`}>
-                    {closed ? "Closed" : pool?.status === "unlocked" ? "Unlocked" : "Pooling"}
+                    {closed ? "Closed" : "Pooling"}
                   </span>
                 </div>
 
@@ -124,8 +124,8 @@ export function PoolCartClient({ cartItems }: PoolCartClientProps) {
               <div className="mt-4">
                 <div className="rounded-[14px] bg-slate-50 p-3">
                   <div className="mb-2 flex justify-between text-xs font-semibold text-slate-600">
-                    <span>{pool.currentJoinCount}/{pool.unlockThreshold} joined</span>
-                    <span>{remainingToUnlock ? `${remainingToUnlock} left` : "Unlocked"}</span>
+                    <span>{pool.currentJoinCount}/{pool.unlockThreshold}</span>
+                    <span>{remainingToUnlock ? `${remainingToUnlock} spots left` : "Unlocked"}</span>
                   </div>
                   <PoolProgress value={joinProgress} />
                 </div>
