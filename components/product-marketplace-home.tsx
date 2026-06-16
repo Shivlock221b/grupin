@@ -247,7 +247,7 @@ function TrendingPoolCard({ pool, onOpenShare }: { pool: TrendingProductPool; on
               Pooling
             </span>
           </div>
-          <button type="button" onClick={() => onOpenShare(pool)} className="line-clamp-2 min-h-10 text-left text-sm font-semibold leading-5 text-slate-950">
+          <button type="button" onClick={() => onOpenShare(pool)} className="line-clamp-3 min-h-[3.75rem] text-left text-sm font-semibold leading-5 text-slate-950">
             {product.title}
           </button>
         </div>
